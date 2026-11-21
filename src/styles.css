@@ -195,3 +195,9 @@ body.live .demo{display:none!important}
 .toast{bottom:calc(96px + env(safe-area-inset-bottom))!important}
 .sheet{padding-bottom:calc(24px + env(safe-area-inset-bottom))!important}
 #tour .tour-center{padding-top:calc(env(safe-area-inset-top) + 20px)}
+/* Suggestions de ville sur les écrans d'inscription (fond sombre) */
+.auth .chip{background:#17171D;color:#fff;border:2px solid #5A5A66;border-radius:12px;min-height:44px;padding:6px 14px;font-size:15px;font-weight:600}
+.auth .chip.on{background:var(--red);border-color:var(--red)}
+.auth [data-townres]{margin-top:2px!important;gap:8px!important}
+/* Bande sombre sous l'heure et la batterie pendant le défilement */
+.auth::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top);background:#0B0B0F;z-index:50}
