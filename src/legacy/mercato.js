@@ -432,6 +432,7 @@ function identities(){const act=CLOUD.mem.filter(m=>m.statut==='actif');const id
   act.forEach(m=>{if(['coach','adjoint'].includes(m.role)&&team(m.team_id))addC(m.team_id);});
   act.forEach(m=>{if(['coach','adjoint'].includes(m.role)&&String(m.team_id||'').startsWith('cat:')){const cat=m.team_id.slice(4);S.teams.filter(t=>t.club===m.club_id&&t.cat===cat).forEach(t=>addC(t.id));}});
   act.forEach(m=>{if(m.role==='responsable')S.teams.filter(t=>t.club===m.club_id&&!t.ext).forEach(t=>addC(t.id));});
+  ids.filter(x=>x.role==='coach').forEach(x=>{const t=team(x.team);if(t&&t.coachPlayer&&S.players.some(p=>p.id===t.coachPlayer)&&!seen.has('p'+t.coachPlayer)){seen.add('p'+t.coachPlayer);ids.push({role:'player',pid:t.coachPlayer,team:t.id});}});
   act.forEach(m=>{if(m.role==='joueur'){const p=S.players.find(p=>p.id===m.player_id);if(p&&!seen.has('p'+p.id)){seen.add('p'+p.id);ids.push({role:'player',pid:p.id,team:p.team});}}});
   act.forEach(m=>{if(['parent','supporter'].includes(m.role)){const x=(S.parents||[]).find(x=>x.id===m.player_id);if(x&&!seen.has('a'+x.id)){seen.add('a'+x.id);ids.push({role:'parent',paId:x.id});}}});
   return ids;}
