@@ -221,3 +221,9 @@ input[type=range]::-moz-range-track{height:8px;border-radius:4px;background:#d9d
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;border-radius:50%;background:var(--red);border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35);margin-top:-10px}
 input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;background:var(--red);border:3px solid #fff}
 .field input[type=checkbox],.field input[type=radio]{-webkit-appearance:auto;appearance:auto;width:auto;min-height:0}
+/* Fenêtres (article, formulaires) : seul le contenu défile, pas l'arrière-plan */
+body.locked{position:fixed;left:0;right:0;overflow:hidden;width:100%}
+.overlay{background:rgba(10,10,12,.78)!important;overscroll-behavior:contain}
+.sheet{touch-action:pan-y;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;max-height:calc(100dvh - env(safe-area-inset-top) - 16px)!important;border-radius:18px 18px 0 0;box-shadow:0 -10px 40px rgba(0,0,0,.45)}
+.sheet .xclose{margin-bottom:-44px}
+.sheet h2{padding-right:52px}
