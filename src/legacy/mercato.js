@@ -4,7 +4,7 @@ import { sb, COLS, MAPS, envoyerPhotos } from './cloud.js'
 export function demarrerMercato(){
 
 'use strict';
-const LIVE=(()=>{try{return localStorage.getItem('mercato-mode')!=='demo';}catch(e){return true;}})();
+const LIVE=(()=>{try{if(/[?&]demo\b/.test(location.search))localStorage.setItem('mercato-mode','demo');return localStorage.getItem('mercato-mode')!=='demo';}catch(e){return true;}})();
 const KEY=LIVE?'mercato-live-v1':'mercato-demo-v3';
 try{document.body.classList.toggle('live',LIVE);}catch(e){}
 const CLOUD={ready:!LIVE,session:null,uid:null,prenom:'',mem:[],last:new Map(),timer:null,busy:false,again:false,chan:null,loading:null,pending:[],fail:false};
@@ -365,6 +365,7 @@ function vLoading(){return `<div class="wrap" style="display:flex;align-items:ce
 function vAuth(){const inner=AUTH==='splash'?vSplash():AUTH==='login'?vLogin():AUTH==='account'?vAccount():AUTH==='checkmail'?vCheckMail():AUTH==='forgot'?vForgot():AUTH==='newpwd'?vNewPwd():AUTH==='wait'?vWait():AUTH==='loading'?vLoading():vSignup();
   let h=`<div class="auth" role="dialog" aria-modal="true" aria-label="Le Mercato du dimanche">${inner}</div>`;
   if(LIVE&&AUTH==='signup'){h=h.replace(/<label class="f">E-mail<input name="mail" type="email" required autocomplete="email"><\/label><label class="f">Mot de passe<input name="pwd" type="password" required[^>]*><\/label>/g,'').replace(/<button class="lnk" data-a="auth" data-v="login">Déjà un compte \? <b style="color:#fff">Connecte-toi<\/b><\/button>/,'<button class="lnk" data-a="logout">Se déconnecter</button>').replace(/name="(who|name)" required autocomplete="given-name"/g,`name="$1" required autocomplete="given-name" value="${esc(CLOUD.prenom)}"`);}
+  if(LIVE&&AUTH==='splash')h=h.replace('<button class="lnk" data-a="auth" data-v="demo">Découvrir la démo sans compte</button>','');
   if(LIVE&&AUTH==='login')h=h.replace(/<div class="or">ou<\/div><div class="soc">.*?<\/div>/s,'').replace('data-a="toastMsg" data-v="Un lien de réinitialisation t’a été envoyé par e-mail."','data-a="auth" data-v="forgot"');
   if(!LIVE&&AUTH==='splash')h=h.replace('Découvrir la démo sans compte','Quitter la démo').replace('data-a="auth" data-v="demo">Quitter','data-a="quitDemo">Quitter');
   return h;}
