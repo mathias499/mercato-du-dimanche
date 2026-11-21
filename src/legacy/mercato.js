@@ -416,7 +416,7 @@ async function cloudSync(){if(!CLOUD.session||!CLOUD.ready)return;if(CLOUD.busy)
 let RENDER_PENDING=false;
 function softRender(){const a=document.activeElement;if(a&&/INPUT|TEXTAREA|SELECT/.test(a.tagName)&&app.contains(a)){if(!RENDER_PENDING){RENDER_PENDING=true;a.addEventListener('blur',()=>{RENDER_PENDING=false;setTimeout(render,50);},{once:true});}return;}render();}
 async function cloudLoadAll(){const all=[];for(let from=0;;from+=1000){const {data,error}=await sb.from('docs').select('col,id,data').range(from,from+999);if(error)throw error;all.push(...data);if(data.length<1000)break;}
-  const keep={};['view','sub','pview','parview','openTour','openLeague','tourCat','tdTab','annHidden'].forEach(k=>keep[k]=S[k]);
+  const keep={};['view','sub','pview','parview','openTour','openLeague','tourCat','tdTab','annHidden','me','meKid'].forEach(k=>keep[k]=S[k]);
   S=Object.assign(emptyState(),keep);CLOUD.last=new Map();all.forEach(r=>{const o=applyDoc(r.col,r.id,r.data);if(o)CLOUD.last.set(r.col+'|'+r.id,JSON.stringify(o));});
   Object.values(dirtyGet()).forEach(x=>applyDoc(x.col,x.id,MAPS.includes(x.col)?x.data:x.data));}
 async function cloudMembres(){const {data}=await sb.from('memberships').select('*').eq('user_id',CLOUD.uid);CLOUD.mem=data||[];}
@@ -431,7 +431,7 @@ function resolveIdentity(){const act=CLOUD.mem.filter(m=>m.statut==='actif'),pen
   if(staff){const tt=team(staff.team_id);if(tt&&!tt.freeReset){tt.free={};tt.freeReset=true;setTimeout(save,300);}}
   if(staff){const tt=team(staff.team_id);if(tt&&!tt.numReset){S.players.filter(p=>p.team===tt.id).forEach(p=>p.num=null);tt.numReset=true;setTimeout(save,300);}}
   else if(j){const p=S.players.find(x=>x.id===j.player_id);S.role='player';S.mePlayer=p.id;S.me=p.team;try{const w=JSON.parse(localStorage.getItem('mercato-souhait')||'null');if(w&&w.pid===p.id){if(w.pos&&(!p.pos||p.pos==='À définir'))p.pos=w.pos;if(w.birth&&!p.birth)p.birth=w.birth;localStorage.removeItem('mercato-souhait');setTimeout(save,500);}}catch(e){}}
-  else if(pa){const x=S.parents.find(y=>y.id===pa.player_id);S.role='parent';S.meParent=x.id;S.meKid=x.kids[0]||null;const kd=S.players.find(y=>y.id===x.kids[0]);S.me=kd?kd.team:x.team;}
+  else if(pa){const x=S.parents.find(y=>y.id===pa.player_id);S.role='parent';S.meParent=x.id;if(!parentTeams(x).includes(S.me)){const kd=S.players.find(y=>y.id===x.kids[0]);S.me=kd?kd.team:x.team;S.meKid=kd?kd.id:null;}}
   else{AUTH=pend.length?'wait':'signup';if(AUTH==='signup'){SU.step=1;}return;}
   if(['wait','signup','loading','checkmail'].includes(AUTH))AUTH=null;}
 async function cloudStart(session){if(CLOUD.loading)return CLOUD.loading;CLOUD.session=session;CLOUD.uid=session.user.id;CLOUD.prenom=(session.user.user_metadata||{}).prenom||'';CLOUD.nom=(session.user.user_metadata||{}).nom||'';
@@ -444,7 +444,7 @@ function cloudRealtime(){if(CLOUD.chan)sb.removeChannel(CLOUD.chan);
 async function cloudInit(){if(!LIVE)return;
   sb.auth.onAuthStateChange((ev,session)=>{if(ev==='PASSWORD_RECOVERY'){AUTH='newpwd';render();return;}if(session&&!CLOUD.session)cloudStart(session);});
   const {data}=await sb.auth.getSession();if(data.session)cloudStart(data.session);else{CLOUD.ready=true;if(!AUTH||AUTH==='loading')AUTH=/nosplash/.test(location.search)?'login':'splash';render();}}
-async function memInsert(rows){for(const r of rows){const {data,error}=await sb.from('memberships').insert(r).select();if(error)console.warn(error.message);if(data)CLOUD.mem.push(...data);}resolveIdentity();render();}
+async function memInsert(rows){let auto=false;for(const r of rows){const {data,error}=await sb.from('memberships').insert(r).select();if(error)console.warn(error.message);if(data){CLOUD.mem.push(...data);if(data.some(x=>x.statut==='actif'&&['joueur','supporter'].includes(x.role)))auto=true;}}if(auto){dirtyMark();try{await cloudLoadAll();}catch(e){}cloudSchedule();}const was=AUTH;resolveIdentity();if(was==='wait'&&!AUTH)toast('Bienvenue ! Tu as retrouvé ta fiche dans l’effectif.');render();}
 async function cloudLogout(){try{await sb.auth.signOut();}catch(e){}try{localStorage.removeItem(KEY);}catch(e){}location.reload();}
 const AUTHERR=(m)=>/already registered|already been registered/i.test(m)?'Un compte existe déjà avec cet e-mail : connecte-toi.':/Invalid login/i.test(m)?'E-mail ou mot de passe incorrect.':/not confirmed/i.test(m)?'Confirme d’abord ton e-mail : clique sur le lien reçu (regarde aussi dans les spams).':/at least|weak|short/i.test(m)?'Mot de passe trop court : 8 caractères minimum.':/rate limit/i.test(m)?'Trop d’essais : réessaie dans quelques minutes.':m;
 
@@ -534,7 +534,8 @@ function renderInner(){
     const co=S.clubs.map(cl=>S.teams.filter(x=>x.club===cl.id).map(x=>`<option value="t:${x.id}">Coach · ${esc(cl.name)} · ${esc(x.cat)}</option>`).join('')).join('');const po=S.players.filter(p=>p.team==='t1').map(p=>`<option value="p:${p.id}">Joueur · ${esc(p.name)}</option>`).join('');
     app.innerHTML=`<div class="demo" role="region" aria-label="Mode démo"><b>DÉMO</b><label class="sr" for="who">Je suis</label><span>Je suis :</span><select id="who" data-c="who"><optgroup label="Coachs">${co}</optgroup><optgroup label="Joueurs">${po}</optgroup><optgroup label="Parents et supporters">${parentOpts}</optgroup></select><button data-a="auth" data-v="splash">Accueil appli</button><button data-a="askReset">Réinit.</button></div>
     <header class="head"><div class="topline"><span>${cap(T0.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'}))}</span><span class="pill" style="background:var(--paper);color:var(--ink)">${kid?'Espace parent':'Supporter'}</span></div>
-    <div class="mast" style="display:flex;align-items:center;gap:12px">${clubLogo(c.id,48)}<div><h1>${esc(c.name)}</h1><small>${kid?'Parent de '+esc(kid.name)+' · '+esc(t.cat):esc(pa.name)+' · supporter '+esc(t.cat)}</small></div></div></header>
+    <div class="mast" style="display:flex;align-items:center;gap:12px">${clubLogo(c.id,48)}<div><h1>${esc(c.name)}</h1><small>${kid?'Parent de '+esc(kid.name)+' · '+esc(t.cat):esc(pa.name)+' · supporter '+esc(t.cat)}</small></div></div>
+    <div class="chips" style="display:flex;gap:8px;overflow-x:auto;padding:10px 0 4px">${parentTeams(pa).map(x=>`<button class="chip ${x===S.me?'on':''}" data-a="parTeam" data-v="${x}" style="display:inline-flex;align-items:center;gap:6px">${clubLogo(team(x).club,20)}${esc(tname(x))}</button>`).join('')}<button class="chip" data-a="followAdd">+ Suivre une équipe</button></div></header>
     <main>${vParent()}</main>
     ${navHTML([['home','Accueil','home'],['matchs','Matchs','ball'],['rank','Classements','trophy'],['gazette','Gazette','party']],pv,'prgo')}
     ${S.modal?vModal():''}${toastMsg?`<div class="toast" role="status">${esc(toastMsg)}</div>`:''}`;return;}
@@ -569,7 +570,7 @@ function upcoming(tid){return S.matches.filter(x=>(x.from===tid||x.to===tid)&&x.
 function carousel(tid){const ms=upcoming(tid);if(ms.length<=1)return heroHTML(ms[0]);
   return `<div><div class="carousel" role="region" aria-label="Prochains matchs, glisse pour voir les suivants">${ms.map((m,i)=>`<div class="slide">${heroHTML(m,i)}</div>`).join('')}</div><div class="dots" aria-hidden="true">${ms.map((m,i)=>`<span class="${i===0?'on':''}"></span>`).join('')}</div><span class="meta" style="display:block;text-align:center">Glisse pour voir les ${ms.length} prochains matchs</span></div>`;}
 function heroHTML(m,idx){
-  if(!m)return `<div class="hero"><div class="bar"><span>À la une</span><span>Pas encore de match</span></div><div class="in">${S.role==='coach'?`<span class="big" style="font-size:32px">Ton prochain adversaire t’attend</span><span class="vs">Coche tes jours libres et lance une recherche.</span><div class="foot"><button data-a="go" data-v="matchs" data-s="find">Trouver un match</button><button data-a="go" data-v="matchs" data-s="dispo">Mes dispos</button></div>`:`<span class="big" style="font-size:32px">Pas encore de match prévu</span><span class="vs">Ton coach cherche un adversaire. Ta convocation arrivera ici dès que le match sera calé.</span>`}</div></div>`;
+  if(!m)return `<div class="hero"><div class="bar"><span>À la une</span><span>Pas encore de match</span></div><div class="in">${S.role==='coach'?`<span class="big" style="font-size:32px">Ton prochain adversaire t’attend</span><span class="vs">Coche tes jours libres et lance une recherche.</span><div class="foot"><button data-a="go" data-v="matchs" data-s="find">Trouver un match</button><button data-a="go" data-v="matchs" data-s="dispo">Mes dispos</button></div>`:`<span class="big" style="font-size:32px">Pas encore de match prévu</span><span class="vs">${S.role==='player'?'Ton coach cherche un adversaire. Ta convocation arrivera ici dès que le match sera calé.':'Le club cherche un adversaire. Le prochain match s’affichera ici, avec le live le jour J.'}</span>`}</div></div>`;
   const home=team(m.from).club===m.place?m.from:m.to;const away=home===m.from?m.to:m.from;
   const lg=m.league?(S.leagues||[]).find(L=>L.id===m.league):null;
   return `<div class="hero" style="border-radius:18px;overflow:hidden"><div class="bar"><span>${idx?'Match à venir':'À la une · Prochain match'}${lg?' · '+esc(lg.name)+' J'+m.round:''}</span><span>Confirmé</span></div><div class="in">
@@ -892,7 +893,8 @@ function vCaisse(c){const cols=(S.collectes||[]).filter(k=>k.club===c.id).sort((
 const myPlayer=()=>S.players.find(p=>p.id===S.mePlayer);
 const isCoach=()=>S.role!=='player'&&S.role!=='parent';
 const myParent=()=>(S.parents||[]).find(x=>x.id===S.meParent);
-const kidOf=()=>{const pa=myParent();return pa?S.players.find(p=>p.id===(S.meKid&&pa.kids.includes(S.meKid)?S.meKid:pa.kids[0])):null;};
+const kidOf=()=>{const pa=myParent();if(!pa)return null;const ks=S.players.filter(p=>pa.kids.includes(p.id));return ks.find(p=>p.id===S.meKid&&p.team===S.me)||ks.find(p=>p.team===S.me)||(S.me?null:ks[0])||null;};
+const parentTeams=(pa)=>[...new Set([...S.players.filter(p=>pa.kids.includes(p.id)).map(p=>p.team),pa.team,...(pa.follows||[])].filter(t=>t&&team(t)))];
 const AGE_SELF=12;
 const parentManaged=(p)=>{const a=ageOf(p);return a!=null&&a<AGE_SELF;};
 const parentsOf=(pid)=>(S.parents||[]).filter(x=>x.kids.includes(pid));
@@ -1524,7 +1526,11 @@ function vModal(){
     <label class="field">Rythme<select name="every"><option value="7">Une journée par semaine</option><option value="14">Une journée toutes les 2 semaines</option></select></label>
     <button class="btn red" type="submit" ${sel.length<2?'disabled':''}>Envoyer les invitations</button>${sel.length<2?'<span class="muted">Choisis au moins 2 équipes (3 avec la tienne).</span>':''}<button class="btn ghost" type="button" data-a="close">Annuler</button></form>`;}
   else if(m.type==='plus'){h=plusSheet();}
-  else if(m.type==='card'){const pp=S.players.find(x=>x.id===m.id);const coach=isCoach();h=`<button class="xclose" data-a="close" aria-label="Fermer">✕</button>`+bigCard(pp,coach);}
+  else if(m.type==='card'){const pp=S.players.find(x=>x.id===m.id);const coach=isCoach();if(!pp){S.modal=null;return '';}h=`<button class="xclose" data-a="close" aria-label="Fermer">✕</button>`+bigCard(pp,coach)+(coach&&pp.team===S.me&&!pp.coachOf?`<button class="lnk" data-a="kickAsk" data-id="${pp.id}" style="align-self:center;color:var(--red);margin-top:6px">Retirer ${esc(shortName(pp.name))} de l’effectif</button>`:'');}
+  else if(m.type==='follow'){const pa=myParent();h=`<h2>Suivre une autre équipe</h2><span class="muted">Ton fils joue ailleurs, tu soutiens un autre club ? Ajoute-le : tu verras ses lives, ses résultats et sa Gazette. Passe d’une équipe à l’autre avec les boutons en haut.</span>
+    <form data-f="follow" style="display:flex;flex-direction:column;gap:12px">${clubSearchHTML('fclub').replace(/class="f"/g,'class="field"')}<label class="field" data-teampick style="display:none">Équipe<select name="team" required></select></label><button class="btn red" type="submit">Suivre cette équipe</button></form>
+    ${(pa.follows||[]).length?`<span class="label" style="margin-top:6px">Équipes suivies</span>${pa.follows.filter(x=>team(x)).map(x=>`<div class="row" style="justify-content:space-between"><span>${esc(tname(x))}</span><button class="lnk" data-a="unfollow" data-v="${x}">Ne plus suivre</button></div>`).join('')}`:''}<button class="btn ghost" data-a="close">Fermer</button>`;}
+  else if(m.type==='kick'){const pp=S.players.find(x=>x.id===m.id);h=`<h2>Retirer ${esc(pp?pp.name:'ce joueur')} ?</h2><span class="muted">Il disparaît de l’effectif et perd l’accès au club : convocations, chat, Gazette réservée au club. Ses stats passées sont effacées. Ses parents perdent aussi l’accès à cette équipe.</span><span class="muted">Il garde son compte et pourra redemander à rejoindre un club ; c’est toi qui décideras.</span><button class="btn red" data-a="kick" data-id="${m.id}">Oui, retirer de l’effectif</button><button class="btn ghost" data-a="openCard" data-id="${m.id}">Annuler</button>`;}
   else if(m.type==='qual'){const pp=S.players.find(x=>x.id===m.id);const q=pp.qual||{};const mode=m.mode||'manual';const r=(pp.tests||{}).raw||{};
     const tab=(v,l)=>`<button data-a="qualMode" data-v="${v}" aria-pressed="${mode===v}" style="flex:1;min-height:44px;border:none;border-radius:10px;font-family:Oswald,sans-serif;font-size:15px;text-transform:uppercase;cursor:pointer;background:${mode===v?'var(--ink)':'transparent'};color:${mode===v?'#fff':'var(--ink)'}">${l}</button>`;
     h=`<h2>Profil de ${esc(pp.name)}</h2><div style="padding:4px;border-radius:14px;background:var(--paper);display:flex;gap:4px">${tab('manual','Saisie rapide')}${tab('tests','Tests')}</div>`;
@@ -1576,6 +1582,12 @@ const A={
   cropOk(){const c=CROP;if(!c)return;const {sc}=cropClamp();const im=new Image();im.onload=()=>{const out=document.createElement('canvas');out.width=360;out.height=432;const k=out.width/CROPW;out.getContext('2d').drawImage(im,c.x*k,c.y*k,c.w*sc*k,c.h*sc*k);const pp=S.players.find(x=>x.id===c.pid);if(pp)pp.photo=out.toDataURL('image/jpeg',0.82);S.modal=c.back||null;CROP=null;save();render();toast('Photo enregistrée');};im.src=c.src;return 'keep';},
   cropNo(){S.modal=CROP&&CROP.back||null;CROP=null;},
   recrop(d){const pp=S.players.find(x=>x.id===d.id);if(!pp||!pp.photo)return;const back=S.modal&&S.modal.type==='card'?S.modal:null;const im=new Image();im.crossOrigin='anonymous';im.onload=()=>{CROP={pid:pp.id,src:pp.photo,w:im.naturalWidth,h:im.naturalHeight,z:1,x:0,y:0,back};S.modal={type:'crop'};render();};im.src=pp.photo;return 'keep';},
+  kickAsk(d){S.modal={type:'kick',id:d.id};},
+  async kick(d){const pp=S.players.find(x=>x.id===d.id);if(!pp)return;if(LIVE){const ids=[pp.id,...(S.parents||[]).filter(x=>x.kids.includes(pp.id)).map(x=>x.id)];const {error}=await sb.from('memberships').delete().in('player_id',ids).eq('club_id',team(pp.team).club);if(error){toast('Impossible : '+error.message);render();return 'keep';}}
+    S.players=S.players.filter(x=>x.id!==pp.id);(S.parents||[]).forEach(x=>{if(x.kids.includes(pp.id))x.kids=x.kids.filter(k=>k!==pp.id);});S.modal=null;toast(shortName(pp.name)+' a été retiré de l’effectif');save();render();return 'keep';},
+  parTeam(d){const pa=myParent();S.me=d.v;const k=pa&&S.players.find(p=>pa.kids.includes(p.id)&&p.team===d.v);S.meKid=k?k.id:null;S.parview='home';},
+  followAdd(){S.modal={type:'follow'};},
+  async unfollow(d){const pa=myParent();if(!pa)return;pa.follows=(pa.follows||[]).filter(x=>x!==d.v);const tm=team(d.v);if(LIVE&&tm&&!parentTeams(pa).some(x=>team(x)&&team(x).club===tm.club)){await sb.from('memberships').delete().eq('user_id',CLOUD.uid).eq('club_id',tm.club).eq('role','supporter');}S.me=parentTeams(pa)[0];S.modal=null;save();render();toast('Tu ne suis plus '+tname(d.v));return 'keep';},
   quitDemo(){try{localStorage.removeItem('mercato-mode');}catch(e){}location.reload();return 'keep';},
   logout(){cloudLogout();return 'keep';},
   async resendMail(){const {error}=await sb.auth.resend({type:'signup',email:SU.mail,options:{emailRedirectTo:location.origin}});toast(error?AUTHERR(error.message):'Mail renvoyé');render();return 'keep';},
@@ -1778,6 +1790,8 @@ const A={
     const txt=rows.map(r=>r.join('\t')).join('\n');try{navigator.clipboard.writeText(txt).then(()=>{toast('Liste copiée : colle-la dans Excel');render();},()=>{toast('Copie refusée par le navigateur');render();});}catch(e){toast('Copie impossible ici');}}
 };
 const F={
+  follow(fd){const tid=fd.get('team');const pa=myParent();if(!tid||!team(tid)||!pa){toast('Tape la ville puis choisis le club et l’équipe');return;}pa.follows=[...new Set([...(pa.follows||[]),tid])];S.me=tid;S.meKid=null;S.modal=null;S.parview='home';const cid=team(tid).club;toast('Tu suis maintenant '+tname(tid));
+    if(LIVE&&!CLOUD.mem.some(m=>m.club_id===cid&&m.statut==='actif'))memInsert([{club_id:cid,team_id:tid,role:'supporter',player_id:pa.id}]);},
   artComment(fd,f){const t=(fd.get('text')||'').trim();if(!t)return;const a=(S.articles||[]).find(x=>x.id===f.dataset.id);if(!a)return;S.comments=S.comments||[];S.comments.push({id:id('cm'),art:a.id,club:a.club,by:whoKey(),at:Date.now(),text:t.slice(0,500)});toast('Commentaire publié');},
   account(fd){const prenom=fd.get('prenom').trim(),nom=(fd.get('nom')||'').trim(),mail=fd.get('mail').trim().toLowerCase(),pwd=fd.get('pwd');SU.mail=mail;
     sb.auth.signUp({email:mail,password:pwd,options:{data:{prenom,nom},emailRedirectTo:location.origin}}).then(({data,error})=>{if(error){toast(AUTHERR(error.message));render();return;}
