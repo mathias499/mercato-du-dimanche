@@ -419,6 +419,7 @@ function resolveIdentity(){const act=CLOUD.mem.filter(m=>m.statut==='actif'),pen
   const j=act.find(m=>m.role==='joueur'&&S.players.some(p=>p.id===m.player_id));
   const pa=act.find(m=>['parent','supporter'].includes(m.role)&&(S.parents||[]).some(x=>x.id===m.player_id));
   if(staff){if(S.role!=='coach'||!team(S.me)||team(S.me).club!==staff.club_id){S.role='coach';S.me=team(staff.team_id)?staff.team_id:S.teams.find(t=>t.club===staff.club_id).id;}}
+  if(staff){const tt=team(staff.team_id);if(tt&&!tt.freeReset){tt.free={};tt.freeReset=true;setTimeout(save,300);}}
   else if(j){const p=S.players.find(x=>x.id===j.player_id);S.role='player';S.mePlayer=p.id;S.me=p.team;try{const w=JSON.parse(localStorage.getItem('mercato-souhait')||'null');if(w&&w.pid===p.id){if(w.pos&&(!p.pos||p.pos==='À définir'))p.pos=w.pos;if(w.birth&&!p.birth)p.birth=w.birth;localStorage.removeItem('mercato-souhait');setTimeout(save,500);}}catch(e){}}
   else if(pa){const x=S.parents.find(y=>y.id===pa.player_id);S.role='parent';S.meParent=x.id;S.meKid=x.kids[0]||null;const kd=S.players.find(y=>y.id===x.kids[0]);S.me=kd?kd.team:x.team;}
   else{AUTH=pend.length?'wait':'signup';if(AUTH==='signup'){SU.step=1;}return;}
@@ -1509,7 +1510,7 @@ function newTeam(clubId,f){const affil=f.affil||'FFF';const t={id:id('t'),club:c
   if(t.lvl===NOLVL||li<0)t.acceptLvls=L.slice();else t.acceptLvls=[...new Set([...L.slice(Math.max(0,li-1),li+2),NOLVL])];
   const loisir=!isYouth(f.cat)&&(affil!=='FFF'||['Loisir','District vétérans',NOLVL].includes(t.lvl)||f.cat==='Foot loisir');
   if(loisir){t.acceptLvls=[...new Set([...t.acceptLvls,'Loisir','FSGT','UFOLEP',NOLVL])];if(!t.acceptCats.includes('Foot loisir'))t.acceptCats.unshift('Foot loisir');}
-  if(f.seed){weekends.forEach(d=>t.free[d]=true);if(!LIVE)seedPlayers(t.id,f.fmts.includes('Foot à 11')?12:9);}
+  if(f.seed){if(!LIVE)weekends.forEach(d=>t.free[d]=true);if(!LIVE)seedPlayers(t.id,f.fmts.includes('Foot à 11')?12:9);}
   S.teams.push(t);return t;}
 const A={
   tourAgain(){S.view='home';S.pview='home';S.parview='home';window.scrollTo&&window.scrollTo(0,0);setTimeout(()=>tourStart(true),300);},
