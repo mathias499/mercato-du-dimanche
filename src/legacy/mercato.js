@@ -798,6 +798,7 @@ function conseil(w,surf){const out=[];
   if(surf==='Herbe'&&w.temp<=0)out.push('Risque de gel : la pelouse peut être fermée par la mairie.');
   return out.join(' ')||'Conditions normales, à ce soir !';}
 const field=(cid,fid)=>{const c=club(cid);return (c.fields||[]).find(f=>f.id===fid)||{name:c.stade,address:c.town,surface:'Herbe'};};
+function trainWindow(tid){const wk=trainingsOf(tid).filter(t=>!t.date).length;return wk>=2?7:14;}
 function trainingsOf(tid){return (S.trainings||[]).filter(t=>t.team===tid);}
 function upcomingTrainings(tid,days){const out=[];for(let i=0;i<days;i++){const d=addDays(T0,i);const s=iso(d);trainingsOf(tid).forEach(tr=>{if(tr.date?tr.date===s:tr.dow===d.getDay()){const key=tr.id+'@'+s;const st=(S.trainState||{})[key]||'A';const useB=st==='B'&&tr.planB;const f=field(team(tid).club,useB?tr.planB.field:tr.field);out.push({tr,date:s,key,st,time:useB?tr.planB.time:tr.time,f,w:meteo(s)});}});}return out;}
 function trainingCard(x,coach){const tm=team(x.tr.team);const cancelled=x.st==='X';const suggestB=x.w.wet&&x.tr.planB&&x.st==='A'&&x.f.surface!=='Salle (gymnase)';
@@ -939,9 +940,9 @@ function motmCard(tid){const m=lastPlayed(tid);if(!m)return '';m.motm=m.motm||{v
     else h+='<span class="muted">Seuls les joueurs présents au match votent.</span>';}
   if(isCoach()){const cn=m.motm.coachNotes||{};const nN=Object.keys(cn).length;h+=`<div class="links"><button class="lnk" data-a="coachNotes" data-id="${m.id}">${nN?'Modifier mes notes ('+nN+' joueur'+(nN>1?'s':'')+')':'Noter les joueurs (facultatif)'}</button>${closed?'':`<button class="lnk red" data-a="closeMotm" data-id="${m.id}">Clôturer le vote maintenant (démo)</button>`}</div>`;}
   return h+'</div>';}
-function nextTrainCard(p){const ups=upcomingTrainings(p.team,15).slice(0,2);const up=ups[0];const last=(()=>{for(let i=1;i<=7;i++){const d=addDays(T0,-i);if(trainingsOf(p.team).some(t=>t.dow===d.getDay()))return iso(d);}return null;})();let h='';
+function nextTrainCard(p){const ups=upcomingTrainings(p.team,trainWindow(p.team));const up=ups[0];const last=(()=>{for(let i=1;i<=7;i++){const d=addDays(T0,-i);if(trainingsOf(p.team).some(t=>t.date?t.date===iso(d):t.dow===d.getDay()))return iso(d);}return null;})();let h='';
   ups.forEach(u=>{const r=((S.trainRsvp||{})[u.key]||{})[p.id];h+=`${trainingCard(u,false)}<div class="row"><button class="btn small ${r==='ok'?'red':'ghost'}" data-a="trainRsvp" data-k="${u.key}" data-v="ok" aria-pressed="${r==='ok'}">Je viens</button><button class="btn small ${r==='no'?'':'ghost'}" data-a="trainRsvp" data-k="${u.key}" data-v="no" aria-pressed="${r==='no'}">Je ne viens pas</button></div>`;});
-  if(!ups.length)h+='<div class="empty">Pas d’entraînement prévu ces deux prochaines semaines.</div>';
+  if(!ups.length)h+=`<div class="empty">Pas d’entraînement prévu ${trainWindow(p.team)===7?'cette semaine':'ces deux prochaines semaines'}.</div>`;
   if(last&&!(p.trainDates||{})[last])h+=`<div class="panel"><span style="font-size:14px">Tu étais à l’entraînement du ${esc(fdLong(last))} ?</span><button class="btn small" data-a="trainDone" data-d="${last}">Oui, j’y étais (+1 séance)</button></div>`;
   return h;}
 
@@ -1130,7 +1131,7 @@ function vParent(){const pa=myParent();const kid=kidOf();const tid=S.me;const c=
       :`<span class="pill ${kid.rep==='ok'?'ok':kid.rep==='no'?'no':kid.rep==='inj'?'inj':'wait'}" style="align-self:flex-start">${kidStatus(kid)}</span><span class="muted" style="font-size:12px">${esc(kid.name)} a ${ageOf(kid)} ans : il a son compte et répond lui-même.</span>`}
       ${cp&&cp.sent&&tacOf(cp.fmt,cp.f)?`<details><summary class="label" style="min-height:36px;display:flex;align-items:center;cursor:pointer">Le système du coach : ${esc(cp.f)}</summary>${tacCard(cp.fmt,cp.f,true)}</details>`:''}</div>`;
       h+=carpoolHTML(m,kid);}
-    if(kid){const ups=upcomingTrainings(tid,15).slice(0,2);const man=parentManaged(kid);h+=`<span class="kicker">Entraînements de ${esc(kid.name)}</span>`;
+    if(kid){const ups=upcomingTrainings(tid,trainWindow(tid));const man=parentManaged(kid);h+=`<span class="kicker">Entraînements de ${esc(kid.name)}</span>`;
       h+=ups.map(u=>{const r=((S.trainRsvp||{})[u.key]||{})[kid.id];return trainingCard(u,false)+(man?`<div class="row"><button class="btn small ${r==='ok'?'red':'ghost'}" data-a="kidTrain" data-k="${u.key}" data-v="ok" aria-pressed="${r==='ok'}">Présent</button><button class="btn small ${r==='no'?'':'ghost'}" data-a="kidTrain" data-k="${u.key}" data-v="no" aria-pressed="${r==='no'}">Absent</button></div>`:`<span class="muted" style="font-size:13px">Réponse de ${esc(kid.name)} : <b>${r==='ok'?'il vient':r==='no'?'il ne vient pas':'pas encore répondu'}</b></span>`);}).join('')||'<div class="empty">Pas d’entraînement prévu.</div>';}
     h+=helpsBlock(tid);h+=`<span class="kicker">Les stars de l’équipe</span>${topHTML(tid,3)}`;return h;}
   if(v==='matchs'){const ms=teamMatches(tid);const up=ms.filter(m=>m.status==='accepted'&&m.date>=TODAY).sort((a,b)=>a.date.localeCompare(b.date));const past=ms.filter(m=>m.status==='played'&&m.score).sort((a,b)=>b.date.localeCompare(a.date));
