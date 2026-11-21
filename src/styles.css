@@ -168,3 +168,4 @@ nav.tabs button.on{font-weight:800;color:var(--red)}
 .dots span{width:7px;height:7px;border-radius:4px;background:#CFCAC0;transition:width .2s}
 .dots span.on{width:20px;background:var(--red)}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+body.live .demo{display:none!important}

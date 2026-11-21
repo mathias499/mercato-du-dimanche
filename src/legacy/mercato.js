@@ -1,9 +1,13 @@
-// Le Mercato du dimanche — logique de l'appli (version 1, données locales)
+// Le Mercato du dimanche — logique de l'appli
 /* eslint-disable */
+import { sb, COLS, MAPS, envoyerPhotos } from './cloud.js'
 export function demarrerMercato(){
 
 'use strict';
-const KEY='mercato-demo-v3';
+const LIVE=(()=>{try{return localStorage.getItem('mercato-mode')!=='demo';}catch(e){return true;}})();
+const KEY=LIVE?'mercato-live-v1':'mercato-demo-v3';
+try{document.body.classList.toggle('live',LIVE);}catch(e){}
+const CLOUD={ready:!LIVE,session:null,uid:null,prenom:'',mem:[],last:new Map(),timer:null,busy:false,again:false,chan:null,loading:null,pending:[],fail:false};
 const KINDS={'Vêtement adulte':['XS','S','M','L','XL','XXL','3XL'],'Vêtement enfant':['4 ans','6 ans','8 ans','10 ans','12 ans','14 ans','16 ans'],'Chaussettes':['27-30','31-34','35-38','39-42','43-46','47-50'],'Chaussures':['35','36','37','38','39','40','41','42','43','44','45','46','47']};
 const ITEM_IDEAS=['Jogging','Survêtement','Sweat','Parka','Coupe-vent','K-way','Polo','Sac de sport','Bonnet','Gants','Maillot d’entraînement','Chasuble'];
 const CATS=['Foot loisir','Seniors','Vétérans +35','Vétérans +45','Vétérans +55','Féminines','U19','U18','U17','U16','U15','U14','U13','U11','U9','U7'];
@@ -111,7 +115,7 @@ const weekday=(dow,k)=>{let d=addDays(T0,1);while(d.getDay()!==dow)d=addDays(d,1
 
 // ---------- utils ----------
 const esc=(s)=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let uid=Date.now();const id=(p)=>p+(uid++).toString(36);
+let uid=Date.now();const id=(p)=>p+(uid++).toString(36)+Math.random().toString(36).slice(2,5);
 function km(a,b){const R=6371,r=Math.PI/180;const dLa=(b[0]-a[0])*r,dLo=(b[1]-a[1])*r;const x=Math.sin(dLa/2)**2+Math.cos(a[0]*r)*Math.cos(b[0]*r)*Math.sin(dLo/2)**2;return Math.round(2*R*Math.asin(Math.sqrt(x)));}
 const initials=(n)=>n.replace(/[^A-Za-zÀ-ÿ ]/g,'').split(' ').filter(w=>w.length>2||/^[A-Z]/.test(w)).map(w=>w[0]).join('').slice(0,3).toUpperCase();
 
@@ -240,8 +244,10 @@ function migrate(){if((S.v||0)<4){S.teams.forEach(t=>{if(t.acceptLvls.some(l=>['
       if(!p.qual&&p.team==='t1'){const L=lineOf(p.pos);const b={G:{Défense:8,Vision:6},D:{Défense:8,Endurance:7},M:{Passe:8,Vision:7,Endurance:7},A:{Frappe:8,Vitesse:8}}[L];p.qual={};['Vitesse','Endurance','Frappe','Passe','Vision','Défense'].forEach((k,j)=>p.qual[k]=Math.max(2,Math.min(10,(b[k]||5)+((i+j)%3)-1)));}});
     if(S.pview==='events'||S.pview==='photos')S.pview='club';S.v=13;}
   if(S.v<14){S.articles=S.articles||[{id:'a1',club:'c1',kind:'match',ref:'match:m3',title:'FC Forgeois s’impose 3-1 face à AS Plateau',chapo:'Au Stade de Forges, une victoire qui fait du bien.',body:'Les nôtres ont pris le match par le bon bout dès le coup d’envoi. Un premier but en début de match, puis deux autres en seconde période pour mettre tout le monde d’accord.\n\nMention spéciale à la défense, solide jusqu’au bout malgré la pression de fin de match.\n\nEt comme d’habitude, la troisième mi-temps a été à la hauteur !',by:'coach:t1',at:Date.now()-12*864e5,bravo:['p1_2','p1_5','p1_7'],photo:null},{id:'a2',club:'c1',kind:'libre',ref:null,title:'Les nouveaux maillots sont arrivés',chapo:'Rouge et noir, floqués au nom de nos sponsors.',body:'Les maillots de la saison sont disponibles. Pensez à vérifier votre taille dans votre profil.\n\nMerci à nos sponsors qui rendent tout ça possible.',by:'p1_3',at:Date.now()-5*864e5,bravo:['coach:t1'],photo:null}];S.v=14;}}
-function load(){try{const raw=localStorage.getItem(KEY);if(raw){S=JSON.parse(raw);migrate();return;}}catch(e){}S=seed();migrate();}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
+function emptyState(){const o={v:14,me:null,role:null,view:'home',sub:{matchs:'find',club:'hub',mail:'msg'},modal:null,openConv:null,openTour:null,openLic:null,compo:{},chats:{},trainRsvp:{},trainState:{},carpool:{},licPrice:{},annHidden:{},dualSeed:true,parentSeed:true,helpSeed:true,annSeed:true,lvlFix:true};COLS.forEach(c=>o[c]=[]);return o;}
+function load(){if(LIVE){try{const raw=localStorage.getItem(KEY);S=raw?JSON.parse(raw):emptyState();}catch(e){S=emptyState();}COLS.forEach(c=>{if(!Array.isArray(S[c]))S[c]=[];});MAPS.forEach(c=>{if(!S[c]||typeof S[c]!=='object')S[c]={};});S.v=14;S.modal=null;return;}
+  try{const raw=localStorage.getItem(KEY);if(raw){S=JSON.parse(raw);migrate();return;}}catch(e){}S=seed();migrate();}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}if(LIVE)cloudSchedule();}
 load();
 let toastMsg=null,toastTimer=null;
 function toast(m){toastMsg=m;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{toastMsg=null;render();},2600);}
@@ -341,13 +347,94 @@ function vSignup(){const st=SU.step,n=SU.role==='coach'?3:2;
     <button class="go" type="submit">${sup?'Suivre l’équipe':'Inscrire mon enfant'}</button></form>`,'su1');}
   if(SU.role==='player')return authShell(`${bar}<h2>Rejoins ton <em>équipe</em></h2><p class="sub">Ton coach t’a envoyé un lien ou un code ? Choisis ton équipe.</p>
     <form data-f="suPlayer" style="display:flex;flex-direction:column;gap:14px"><label class="f">Prénom<input name="name" required autocomplete="given-name"></label><label class="f">E-mail<input name="mail" type="email" required autocomplete="email"></label><label class="f">Mot de passe<input name="pwd" type="password" required minlength="6" autocomplete="new-password"></label>
-    <label class="f">Ton équipe<select name="team">${S.teams.map(x=>`<option value="${x.id}">${esc(club(x.club).name)} · ${esc(x.cat)}</option>`).join('')}</select></label>
+    ${clubSearchHTML('pclub')}<label class="f" data-teampick style="display:none">Ton équipe<select name="team" required></select></label>
     <label class="f">Date de naissance<input name="birth" type="date" required></label>
     <label class="f">Poste préféré<select name="pos">${['Gardien','Défenseur central','Latéral','Milieu','Ailier','Attaquant'].map(x=>`<option>${x}</option>`).join('')}</select></label>
     <button class="go" type="submit">Rejoindre l’équipe</button></form>`,'su1');
   return '';}
-function vAuth(){return `<div class="auth" role="dialog" aria-modal="true" aria-label="Le Mercato du dimanche">${AUTH==='splash'?vSplash():AUTH==='login'?vLogin():vSignup()}</div>`;}
-function afterRender(){document.querySelectorAll('.carousel').forEach(c=>{c.addEventListener('scroll',()=>{const w=c.firstElementChild?c.firstElementChild.offsetWidth+10:1;const i=Math.round(c.scrollLeft/w);const d=c.parentNode.querySelector('.dots');if(d)[...d.children].forEach((x,k)=>x.classList.toggle('on',k===i));},{passive:true});});}
+function vAccount(){return authShell(`${crest(52)}<h2>Crée ton <em>compte</em></h2><p class="sub">Ton e-mail reste privé : il n’est jamais affiché dans l’appli.</p>
+  <form data-f="account" style="display:flex;flex-direction:column;gap:14px"><label class="f">Prénom<input name="prenom" required autocomplete="given-name"></label><label class="f">E-mail<input name="mail" type="email" required autocomplete="email" placeholder="toi@exemple.fr"></label><label class="f">Mot de passe (8 caractères minimum)<input name="pwd" type="password" required minlength="8" autocomplete="new-password"></label>
+  <label class="role" style="cursor:pointer;padding:12px"><input type="checkbox" name="ok" required style="width:22px;height:22px;accent-color:var(--red)"><div><span>J’accepte que mes données servent uniquement au fonctionnement de l’appli. Je peux supprimer mon compte à tout moment.</span></div></label>
+  <button class="go" type="submit">Créer mon compte</button></form><button class="lnk" data-a="auth" data-v="login">Déjà un compte ? <b style="color:#fff">Connecte-toi</b></button>`);}
+function vCheckMail(){return authShell(`${crest(52)}<h2>Vérifie tes <em>mails</em></h2><p class="sub">On t’a envoyé un lien de confirmation à <b style="color:#fff">${esc(SU.mail||'ton adresse')}</b>. Clique dessus pour activer ton compte, puis reviens ici.</p><p class="sub" style="font-size:13px">Rien reçu ? Regarde dans les spams ou les promotions.</p>
+  <button class="go2" data-a="resendMail">Renvoyer le mail</button><button class="go" data-a="auth" data-v="login">J’ai confirmé : me connecter</button>`);}
+function vForgot(){return authShell(`${crest(52)}<h2>Mot de passe <em>oublié</em></h2><p class="sub">Indique ton e-mail : tu recevras un lien pour en choisir un nouveau.</p><form data-f="forgot" style="display:flex;flex-direction:column;gap:14px"><label class="f">E-mail<input name="mail" type="email" required autocomplete="email"></label><button class="go" type="submit">Envoyer le lien</button></form>`,'login');}
+function vNewPwd(){return authShell(`${crest(52)}<h2>Nouveau <em>mot de passe</em></h2><form data-f="newpwd" style="display:flex;flex-direction:column;gap:14px"><label class="f">Nouveau mot de passe (8 caractères minimum)<input name="pwd" type="password" required minlength="8" autocomplete="new-password"></label><button class="go" type="submit">Enregistrer</button></form>`);}
+function vWait(){const m=CLOUD.mem.find(x=>x.statut!=='actif');const c=m?club(m.club_id):null;return authShell(`${crest(52)}<h2>Demande <em>envoyée</em></h2><p class="sub">${c?'Le coach de <b style="color:#fff">'+esc(c.name)+'</b>':'Le coach'} doit valider ta demande. Tu auras accès à tout dès qu’il l’aura acceptée.</p><button class="go" data-a="refreshMem">Actualiser</button><button class="lnk" data-a="logout">Se déconnecter</button>`);}
+function vLoading(){return `<div class="wrap" style="display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;gap:16px">${crest(72)}<span class="tag">Chargement…</span></div>`;}
+function vAuth(){const inner=AUTH==='splash'?vSplash():AUTH==='login'?vLogin():AUTH==='account'?vAccount():AUTH==='checkmail'?vCheckMail():AUTH==='forgot'?vForgot():AUTH==='newpwd'?vNewPwd():AUTH==='wait'?vWait():AUTH==='loading'?vLoading():vSignup();
+  let h=`<div class="auth" role="dialog" aria-modal="true" aria-label="Le Mercato du dimanche">${inner}</div>`;
+  if(LIVE&&AUTH==='signup'){h=h.replace(/<label class="f">E-mail<input name="mail" type="email" required autocomplete="email"><\/label><label class="f">Mot de passe<input name="pwd" type="password" required[^>]*><\/label>/g,'').replace(/<button class="lnk" data-a="auth" data-v="login">Déjà un compte \? <b style="color:#fff">Connecte-toi<\/b><\/button>/,'<button class="lnk" data-a="logout">Se déconnecter</button>').replace(/name="(who|name)" required autocomplete="given-name"/g,`name="$1" required autocomplete="given-name" value="${esc(CLOUD.prenom)}"`);}
+  if(LIVE&&AUTH==='login')h=h.replace(/<div class="or">ou<\/div><div class="soc">.*?<\/div>/s,'').replace('data-a="toastMsg" data-v="Un lien de réinitialisation t’a été envoyé par e-mail."','data-a="auth" data-v="forgot"');
+  if(!LIVE&&AUTH==='splash')h=h.replace('Découvrir la démo sans compte','Quitter la démo').replace('data-a="auth" data-v="demo">Quitter','data-a="quitDemo">Quitter');
+  return h;}
+
+// ══════════ SUPABASE : synchronisation des données ══════════
+function docMeta(col,o,key){const tc=(tid)=>{const t=S.teams.find(x=>x.id===tid);return t?t.club:null;};let c1=null,c2=null,vis='club';
+  switch(col){case 'clubs':c1=o.id;vis='public';break;case 'teams':c1=o.club;vis='public';break;case 'players':c1=tc(o.team);break;
+    case 'matches':c1=tc(o.from);c2=tc(o.to);vis='public';break;case 'convs':c1=tc(o.a);c2=tc(o.b);break;
+    case 'tournaments':c1=o.club;vis='public';break;case 'posts':c1=o.club;vis='supporters';break;case 'sponsors':c1=o.club;vis='supporters';break;
+    case 'forum':c1=tc(o.team);vis='public';break;case 'items':case 'collectes':case 'notifs':c1=o.club||tc(o.team);break;
+    case 'trainings':c1=tc(o.team);vis='supporters';break;case 'parents':c1=tc(o.team);break;
+    case 'events':case 'articles':case 'helps':c1=o.club||tc(o.team);vis='supporters';break;case 'annonces':c1=tc(o.team);vis='public';break;
+    case 'leagues':c1=tc(o.owner);vis='public';break;
+    case 'compo':c1=tc(key);vis='supporters';break;case 'chats':c1=tc(key);break;
+    case 'trainRsvp':case 'trainState':{const tr=(S.trainings||[]).find(x=>x.id===String(key).split('@')[0]);c1=tr?tc(tr.team):null;break;}
+    case 'carpool':{const m=S.matches.find(x=>x.id===key);if(m){c1=tc(m.from);c2=tc(m.to);}vis='supporters';break;}
+    case 'licPrice':c1=key;break;}
+  if(!c1&&!c2&&vis!=='public')vis='prive';return {club_id:c1,club2:c2,visibilite:vis};}
+function collectDocs(){const out=new Map();COLS.forEach(c=>(S[c]||[]).forEach(o=>{if(o&&o.id!=null)out.set(c+'|'+o.id,{col:c,id:String(o.id),data:o});}));
+  MAPS.forEach(c=>Object.entries(S[c]||{}).forEach(([k,v])=>out.set(c+'|'+k,{col:c,id:k,data:{v},key:k})));return out;}
+function applyDoc(col,id,data){if(COLS.includes(col)){const arr=S[col]=S[col]||[];const i=arr.findIndex(x=>String(x.id)===String(id));if(data==null){if(i>=0)arr.splice(i,1);return null;}if(i>=0)arr[i]=data;else arr.push(data);return data;}
+  if(MAPS.includes(col)){S[col]=S[col]||{};if(data==null){delete S[col][id];return null;}S[col][id]=data.v;return data;}return null;}
+function cloudSchedule(){if(!LIVE||!CLOUD.session||!CLOUD.ready)return;clearTimeout(CLOUD.timer);CLOUD.timer=setTimeout(cloudSync,400);}
+async function cloudSync(){if(!CLOUD.session||!CLOUD.ready)return;if(CLOUD.busy){CLOUD.again=true;return;}CLOUD.busy=true;
+  try{const cur=collectDocs();const up=[];for(const [k,d] of cur){const j=JSON.stringify(d.data);if(CLOUD.last.get(k)!==j)up.push([k,d]);}
+    const del=[...CLOUD.last.keys()].filter(k=>!cur.has(k));
+    for(const [k,d] of up){if(await envoyerPhotos(d.data,CLOUD.uid)){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}}
+    const rows=up.map(([k,d])=>Object.assign({col:d.col,id:d.id,data:d.data},docMeta(d.col,d.data.v!==undefined&&MAPS.includes(d.col)?d.data.v:d.data,d.key||d.id)));
+    let fail=0;for(let i=0;i<rows.length;i+=100){const part=rows.slice(i,i+100);const {error}=await sb.from('docs').upsert(part,{onConflict:'col,id'});
+      if(!error){part.forEach(r=>CLOUD.last.set(r.col+'|'+r.id,JSON.stringify(r.data)));}
+      else{for(const r of part){const {error:e2}=await sb.from('docs').upsert([r],{onConflict:'col,id'});if(!e2)CLOUD.last.set(r.col+'|'+r.id,JSON.stringify(r.data));else if(/network|fetch/i.test(e2.message||''))fail=-1;else{fail++;CLOUD.last.set(r.col+'|'+r.id,JSON.stringify(r.data));console.warn('Synchro refusée',r.col,r.id,e2.message);}}}}
+    for(const k of del){const [col,...rest]=k.split('|');const {error}=await sb.from('docs').delete().match({col,id:rest.join('|')});if(!error||!/network|fetch/i.test(error.message||''))CLOUD.last.delete(k);}
+    if(fail>0&&!CLOUD.fail){CLOUD.fail=true;toast('Une modification n’a pas pu être enregistrée (droits insuffisants).');}
+    if(fail<0)setTimeout(cloudSchedule,5000);
+  }catch(e){console.warn(e);setTimeout(cloudSchedule,5000);}finally{CLOUD.busy=false;if(CLOUD.again){CLOUD.again=false;cloudSchedule();}}}
+let RENDER_PENDING=false;
+function softRender(){const a=document.activeElement;if(a&&/INPUT|TEXTAREA|SELECT/.test(a.tagName)&&app.contains(a)){if(!RENDER_PENDING){RENDER_PENDING=true;a.addEventListener('blur',()=>{RENDER_PENDING=false;setTimeout(render,50);},{once:true});}return;}render();}
+async function cloudLoadAll(){const all=[];for(let from=0;;from+=1000){const {data,error}=await sb.from('docs').select('col,id,data').range(from,from+999);if(error)throw error;all.push(...data);if(data.length<1000)break;}
+  const keep={};['view','sub','pview','parview','openTour','openLeague','tourCat','tdTab','annHidden'].forEach(k=>keep[k]=S[k]);
+  S=Object.assign(emptyState(),keep);CLOUD.last=new Map();all.forEach(r=>{const o=applyDoc(r.col,r.id,r.data);if(o)CLOUD.last.set(r.col+'|'+r.id,JSON.stringify(o));});}
+async function cloudMembres(){const {data}=await sb.from('memberships').select('*').eq('user_id',CLOUD.uid);CLOUD.mem=data||[];}
+async function cloudPending(){if(S.role!=='coach'||!me())return;const {data}=await sb.from('memberships').select('*').eq('club_id',me().club).eq('statut','en_attente');CLOUD.pending=data||[];
+  const ids=[...new Set(CLOUD.pending.map(m=>m.user_id))];if(ids.length){const {data:pr}=await sb.from('profiles').select('id,prenom').in('id',ids);(pr||[]).forEach(x=>CLOUD.pending.forEach(m=>{if(m.user_id===x.id)m.prenom=x.prenom;}));}}
+function resolveIdentity(){const act=CLOUD.mem.filter(m=>m.statut==='actif'),pend=CLOUD.mem.filter(m=>m.statut!=='actif');
+  if(AUTH==='signup'&&SU.step>1)return;
+  const staff=act.find(m=>['coach','adjoint'].includes(m.role)&&team(m.team_id))||act.find(m=>m.role==='responsable'&&S.teams.some(t=>t.club===m.club_id));
+  const j=act.find(m=>m.role==='joueur'&&S.players.some(p=>p.id===m.player_id));
+  const pa=act.find(m=>['parent','supporter'].includes(m.role)&&(S.parents||[]).some(x=>x.id===m.player_id));
+  if(staff){if(S.role!=='coach'||!team(S.me)||team(S.me).club!==staff.club_id){S.role='coach';S.me=team(staff.team_id)?staff.team_id:S.teams.find(t=>t.club===staff.club_id).id;}}
+  else if(j){const p=S.players.find(x=>x.id===j.player_id);S.role='player';S.mePlayer=p.id;S.me=p.team;}
+  else if(pa){const x=S.parents.find(y=>y.id===pa.player_id);S.role='parent';S.meParent=x.id;S.meKid=x.kids[0]||null;const kd=S.players.find(y=>y.id===x.kids[0]);S.me=kd?kd.team:x.team;}
+  else{AUTH=pend.length?'wait':'signup';if(AUTH==='signup'){SU.step=1;}return;}
+  if(['wait','signup','loading','checkmail'].includes(AUTH))AUTH=null;}
+async function cloudStart(session){if(CLOUD.loading)return CLOUD.loading;CLOUD.session=session;CLOUD.uid=session.user.id;CLOUD.prenom=(session.user.user_metadata||{}).prenom||'';
+  CLOUD.loading=(async()=>{AUTH='loading';render();try{await cloudLoadAll();await cloudMembres();}catch(e){console.warn(e);toast('Connexion difficile : affichage des dernières données enregistrées');}
+    CLOUD.ready=true;resolveIdentity();try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}cloudRealtime();cloudPending().then(()=>render());render();cloudSchedule();})();return CLOUD.loading;}
+function cloudRealtime(){if(CLOUD.chan)sb.removeChannel(CLOUD.chan);
+  CLOUD.chan=sb.channel('mercato').on('postgres_changes',{event:'*',schema:'public',table:'docs'},(p)=>{if(p.eventType==='DELETE'){const o=p.old||{};if(o.col){applyDoc(o.col,o.id,null);CLOUD.last.delete(o.col+'|'+o.id);}}
+      else{const r=p.new;const o=applyDoc(r.col,r.id,r.data);if(o)CLOUD.last.set(r.col+'|'+r.id,JSON.stringify(o));}softRender();})
+    .on('postgres_changes',{event:'*',schema:'public',table:'memberships'},async()=>{const avant=CLOUD.mem.filter(m=>m.statut==='actif').length;await cloudMembres();if(CLOUD.mem.filter(m=>m.statut==='actif').length!==avant){try{await cloudLoadAll();}catch(e){}}resolveIdentity();await cloudPending();softRender();}).subscribe();}
+async function cloudInit(){if(!LIVE)return;
+  sb.auth.onAuthStateChange((ev,session)=>{if(ev==='PASSWORD_RECOVERY'){AUTH='newpwd';render();return;}if(session&&!CLOUD.session)cloudStart(session);});
+  const {data}=await sb.auth.getSession();if(data.session)cloudStart(data.session);else{CLOUD.ready=true;if(!AUTH||AUTH==='loading')AUTH=/nosplash/.test(location.search)?'login':'splash';render();}}
+async function memInsert(rows){for(const r of rows){const {data,error}=await sb.from('memberships').insert(r).select();if(error)console.warn(error.message);if(data)CLOUD.mem.push(...data);}resolveIdentity();render();}
+async function cloudLogout(){try{await sb.auth.signOut();}catch(e){}try{localStorage.removeItem(KEY);}catch(e){}location.reload();}
+const AUTHERR=(m)=>/already registered|already been registered/i.test(m)?'Un compte existe déjà avec cet e-mail : connecte-toi.':/Invalid login/i.test(m)?'E-mail ou mot de passe incorrect.':/not confirmed/i.test(m)?'Confirme d’abord ton e-mail : clique sur le lien reçu (regarde aussi dans les spams).':/at least|weak|short/i.test(m)?'Mot de passe trop court : 8 caractères minimum.':/rate limit/i.test(m)?'Trop d’essais : réessaie dans quelques minutes.':m;
+function afterRender(){if(LIVE&&!AUTH&&!REFMODE){const mn=document.querySelector('main');const show=(S.role==='coach'&&S.view==='settings')||(S.role==='player'&&S.pview==='me')||(S.role==='parent'&&(S.parview||'home')==='home');
+    if(mn&&show&&!mn.querySelector('[data-out]'))mn.insertAdjacentHTML('beforeend','<div style="text-align:center;margin:28px 0 12px"><button class="btn ghost" data-out data-a="logout">Se déconnecter</button></div>');
+    if(S.role==='coach'&&S.view==='home'&&mn&&CLOUD.pending.length&&!mn.querySelector('[data-pend]'))mn.insertAdjacentHTML('afterbegin','<div data-pend>'+pendingCard()+'</div>');}
+document.querySelectorAll('.carousel').forEach(c=>{c.addEventListener('scroll',()=>{const w=c.firstElementChild?c.firstElementChild.offsetWidth+10:1;const i=Math.round(c.scrollLeft/w);const d=c.parentNode.querySelector('.dots');if(d)[...d.children].forEach((x,k)=>x.classList.toggle('on',k===i));},{passive:true});});}
 function render(){renderInner();afterRender();}
 function renderInner(){
   clearInterval(TDT);TDT=null;if(S.modal&&S.modal.type==='tdMatch'){TDT=setInterval(()=>{const el=document.getElementById('tdclock');if(!el||!S.modal||S.modal.type!=='tdMatch'){clearInterval(TDT);return;}const r=S.tournaments.find(x=>x.id===S.modal.r);const m=r.td.cats[S.modal.cat].matches.find(x=>x.id===S.modal.id);const left=Math.max(0,(m.dur||Number(r.rules.dur))*60000-((m.el||0)+(m.t0?Date.now()-m.t0:0)));const sec=Math.ceil(left/1000);el.textContent=hm(sec);if(m.t0&&left===0&&!m.buzz){m.buzz=true;beep(3,1046);}},500);}
@@ -407,6 +494,9 @@ function heroHTML(m,idx){
   <div class="foot" style="margin-top:0"><a href="${wa('⚽ '+tshort(home)+' contre '+tshort(away)+' — '+cap(fdLong(m.date))+' à '+m.time.replace(':','h')+', '+club(m.place).stade+'. Venez nombreux ! (Le Mercato du dimanche)')}" target="_blank" rel="noopener" style="color:#fff;font-family:Inter,sans-serif;font-size:12px;font-weight:700;min-height:40px;display:flex;align-items:center">Partager l’affiche sur WhatsApp</a>${!isCoach()?'':`<button data-a="live" data-id="${m.id}">${m.lv&&['run','brk'].includes(m.lv.state)?'Gérer le live':'Lancer le live'}</button>`}</div></div></div>`;
 }
 function homeTeamMenu(){const tids=teamsOfClub(myClub().id);return `<label class="sr" for="hteam">Équipe affichée</label><div style="position:relative"><select id="hteam" data-c="teamPick" style="width:100%;min-height:52px;border:3px solid var(--ink);border-radius:14px;background:#fff;font-family:Oswald,sans-serif;font-size:20px;font-weight:700;text-transform:uppercase;padding:0 40px 0 56px;appearance:none;-webkit-appearance:none">${tids.map(x=>`<option value="${x}" ${x===S.me?'selected':''}>${esc(team(x).cat)} · ${esc(team(x).lvl)}</option>`).join('')}<option value="__new">+ Ajouter une catégorie</option></select><span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none">${clubLogo(myClub().id,34)}</span><span aria-hidden="true" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:18px;pointer-events:none">▾</span></div>`;}
+function pendingCard(){if(!LIVE||!CLOUD.pending.length)return '';const lab={coach:'Coach',adjoint:'Adjoint',joueur:'Joueur',parent:'Parent',responsable:'Responsable'};
+  return `<section class="card" style="border:3px solid var(--red);margin-bottom:16px"><h3 style="margin:0 0 8px">Demandes à valider (${CLOUD.pending.length})</h3>${CLOUD.pending.map(m=>{const pl=S.players.find(x=>x.id===m.player_id)||(S.parents||[]).find(x=>x.id===m.player_id);const t=team(m.team_id);
+    return `<div class="row" style="gap:10px;padding:10px 0;border-top:1px solid #0001;flex-wrap:wrap"><div class="grow"><b>${esc((pl&&pl.name)||m.prenom||'Nouveau membre')}</b><br><small>${lab[m.role]||m.role}${t?' · '+esc(t.cat):''}</small></div><button class="btn" data-a="memOk" data-v="${m.id}">Accepter</button><button class="btn ghost" data-a="memNo" data-v="${m.id}">Refuser</button></div>`;}).join('')}</section>`;}
 function vHome(){
   const m=nextMatch();const lb=liveBanner();const pend=myMatches().filter(x=>x.status==='pending'&&x.to===S.me).length;const free=freeDays(me()).length;
   const cands=candidates().filter(x=>x.common.length).slice(0,2);
@@ -1341,9 +1431,16 @@ function newTeam(clubId,f){const affil=f.affil||'FFF';const t={id:id('t'),club:c
   if(t.lvl===NOLVL||li<0)t.acceptLvls=L.slice();else t.acceptLvls=[...new Set([...L.slice(Math.max(0,li-1),li+2),NOLVL])];
   const loisir=!isYouth(f.cat)&&(affil!=='FFF'||['Loisir','District vétérans',NOLVL].includes(t.lvl)||f.cat==='Foot loisir');
   if(loisir){t.acceptLvls=[...new Set([...t.acceptLvls,'Loisir','FSGT','UFOLEP',NOLVL])];if(!t.acceptCats.includes('Foot loisir'))t.acceptCats.unshift('Foot loisir');}
-  if(f.seed){weekends.forEach(d=>t.free[d]=true);seedPlayers(t.id,f.fmts.includes('Foot à 11')?12:9);}
+  if(f.seed){weekends.forEach(d=>t.free[d]=true);if(!LIVE)seedPlayers(t.id,f.fmts.includes('Foot à 11')?12:9);}
   S.teams.push(t);return t;}
 const A={
+  quitDemo(){try{localStorage.removeItem('mercato-mode');}catch(e){}location.reload();return 'keep';},
+  logout(){cloudLogout();return 'keep';},
+  async resendMail(){const {error}=await sb.auth.resend({type:'signup',email:SU.mail,options:{emailRedirectTo:location.origin}});toast(error?AUTHERR(error.message):'Mail renvoyé');render();return 'keep';},
+  async refreshMem(){await cloudMembres();if(CLOUD.mem.some(m=>m.statut==='actif'))await cloudLoadAll();resolveIdentity();render();return 'keep';},
+  async memOk(d){const {error}=await sb.from('memberships').update({statut:'actif'}).eq('id',d.v);if(error){toast('Validation impossible : '+error.message);}else{CLOUD.pending=CLOUD.pending.filter(m=>m.id!==d.v);toast('Accès validé');}render();return 'keep';},
+  async memNo(d){const m=CLOUD.pending.find(x=>x.id===d.v);const {error}=await sb.from('memberships').delete().eq('id',d.v);if(error){toast('Impossible : '+error.message);render();return 'keep';}
+    CLOUD.pending=CLOUD.pending.filter(x=>x.id!==d.v);if(m&&m.player_id){S.players=S.players.filter(p=>p.id!==m.player_id);S.parents=(S.parents||[]).filter(p=>p.id!==m.player_id);}toast('Demande refusée');save();render();return 'keep';},
   go(d){S.view=d.v;if(d.s){if(d.v==='matchs')S.sub.matchs=d.s;if(d.v==='club')S.sub.club=d.s;}else if(d.v==='club')S.sub.club='hub';S.openConv=null;if(d.v!=='tournois')S.openTour=null;try{window.scrollTo(0,0);}catch(e){}},
   sub(d){S.sub[d.k]=d.v;},
   item(d){S.openItem=d.id;},
@@ -1440,7 +1537,11 @@ const A={
   reg(d){const r=S.tournaments.find(x=>x.id===d.id);const c=r.cats.find(x=>x.cat===me().cat);if(c.extra+c.teams.length<c.max){c.teams.push(S.me);toast('Inscription confirmée · '+r.price+' € (paiement simulé)');}else{c.wait.push(S.me);toast('Ajouté à la liste d’attente');}},
   unreg(d){const r=S.tournaments.find(x=>x.id===d.id);const c=r.cats.find(x=>x.cat===me().cat);const was=c.teams.includes(S.me);c.teams=c.teams.filter(x=>x!==S.me);c.wait=c.wait.filter(x=>x!==S.me);if(was&&c.wait.length){const nx=c.wait.shift();c.teams.push(nx);}toast('Inscription annulée');},
   newTour(){S.modal=newTourModal();},
-  auth(d){if(d.v==='demo'||d.v==='done'){AUTH=null;if(d.v==='done')toast('Bienvenue ! Ton club est prêt.');window.scrollTo&&window.scrollTo(0,0);return;}if(d.v==='su1'){SU.step=1;AUTH='signup';return;}if(d.v==='su2'){SU.step=2;return;}if(d.v==='signup'){SU.step=1;SU.role=null;}AUTH=d.v;try{document.querySelector('.auth').scrollTop=0;}catch(e){}},
+  auth(d){if(LIVE&&d.v==='demo'){try{localStorage.setItem('mercato-mode','demo');}catch(e){}location.reload();return 'keep';}
+    if(LIVE&&d.v==='signup'&&!CLOUD.session){AUTH='account';return;}
+    if(LIVE&&d.v==='done'){AUTH=null;SU.step=1;resolveIdentity();if(!AUTH)toast('Bienvenue ! Ton club est prêt.');return;}
+    if(LIVE&&CLOUD.session&&['splash','login','su1','signup'].includes(d.v)&&!CLOUD.mem.some(m=>m.statut==='actif')){SU.step=1;AUTH='signup';return;}
+    if(d.v==='demo'||d.v==='done'){AUTH=null;if(d.v==='done')toast('Bienvenue ! Ton club est prêt.');window.scrollTo&&window.scrollTo(0,0);return;}if(d.v==='su1'){SU.step=1;AUTH='signup';return;}if(d.v==='su2'){SU.step=2;return;}if(d.v==='signup'){SU.step=1;SU.role=null;}AUTH=d.v;try{document.querySelector('.auth').scrollTop=0;}catch(e){}},
   mode(d){if(d.v==='player'&&isCoach()){const t=me();S.role='player';S.mePlayer=t.coachPlayer;S.pview='home';S.modal=null;toast('Espace joueur');}else if(d.v==='coach'&&S.role==='player'){const p=myPlayer();S.role='coach';S.me=p.coachOf;S.modal=null;toast('Espace coach');}},
   togglePlay(){const t=me();if(t.coachPlayer){const p=S.players.find(x=>x.id===t.coachPlayer);if(p)delete p.coachOf;delete t.coachPlayer;toast('Tu n’es plus joueur de l’équipe');return;}const pl={id:id('p'),team:t.id,name:t.coachName||'Coach',num:S.players.filter(x=>x.team===t.id).length+1,pos:'Milieu',alt:[],lic:false,mode:'Virement',pot:false,sizes:{},given:{},rep:'wait',coachOf:t.id};S.players.push(pl);t.coachPlayer=pl.id;toast('Ton espace joueur est créé');},
   suRole(d){SU.role=d.v;SU.step=2;SU.join='new';},
@@ -1530,6 +1631,12 @@ const A={
     const txt=rows.map(r=>r.join('\t')).join('\n');try{navigator.clipboard.writeText(txt).then(()=>{toast('Liste copiée : colle-la dans Excel');render();},()=>{toast('Copie refusée par le navigateur');render();});}catch(e){toast('Copie impossible ici');}}
 };
 const F={
+  account(fd){const prenom=fd.get('prenom').trim(),mail=fd.get('mail').trim().toLowerCase(),pwd=fd.get('pwd');SU.mail=mail;
+    sb.auth.signUp({email:mail,password:pwd,options:{data:{prenom},emailRedirectTo:location.origin}}).then(({data,error})=>{if(error){toast(AUTHERR(error.message));render();return;}
+      if(data.user&&data.user.identities&&data.user.identities.length===0){toast('Un compte existe déjà avec cet e-mail : connecte-toi.');AUTH='login';render();return;}
+      if(data.session)cloudStart(data.session);else{AUTH='checkmail';render();}});return 'async';},
+  forgot(fd){const mail=fd.get('mail').trim();sb.auth.resetPasswordForEmail(mail,{redirectTo:location.origin}).then(()=>{toast('Si un compte existe, un lien vient d’être envoyé.');AUTH='login';render();});return 'async';},
+  newpwd(fd){sb.auth.updateUser({password:fd.get('pwd')}).then(({error})=>{if(error){toast(AUTHERR(error.message));render();return;}toast('Mot de passe changé');AUTH=null;sb.auth.getSession().then(({data})=>{if(data.session&&!CLOUD.session)cloudStart(data.session);else{resolveIdentity();render();}});});return 'async';},
   refPin(fd){const r=S.tournaments.find(x=>x.id===REFMODE.r);const rf=r.td.refs.field[REFMODE.f];if(String(fd.get('pin')).trim()!==rf.pin){toast('Code incorrect');return;}REFMODE.ok=true;toast('C’est parti : tu gères le terrain '+REFMODE.f);},
   tourExt(fd){const r=S.tournaments.find(x=>x.id===S.openTour);const k=r.cats.find(c=>c.cat===fd.get('cat'));const n=(fd.get('name')||'').trim();if(!n)return;k.extNames=k.extNames||[];k.extNames.push(n);k.extra=Math.max(k.extra,k.extNames.length);toast(n+' ajoutée au tournoi');},
   tour1(fd){const d=S.modal.d;d.name=(fd.get('name')||'').trim();d.date=fd.get('date');d.start=fd.get('start');d.price=Number(fd.get('price'))||0;d.squad=Number(fd.get('squad'))||10;d.cats=[0,1,2].map(i=>fd.get('c'+i)?{cat:fd.get('c'+i),max:Number(fd.get('n'+i))||8}:null).filter(Boolean);
@@ -1547,15 +1654,17 @@ const F={
   suParent(fd){S.parents=S.parents||[];const tid=fd.get('team');if(!tid||!team(tid)){toast('Tape la ville puis choisis le club et l’équipe');return;}const pa={id:id('pa'),name:fd.get('name').trim(),team:tid,kids:[],img:!!fd.get('img')};let msg='Bienvenue ! Tu suis maintenant '+tname(tid);
     if(!SU.sup){const k={id:id('p'),team:tid,name:(fd.get('kid')||'').trim()||'Mon enfant',num:S.players.filter(x=>x.team===tid).length+1,pos:fd.get('pos'),alt:[],lic:false,mode:'Virement',pot:false,sizes:{},given:{},rep:'wait',birth:fd.get('birth'),img:pa.img};S.players.push(k);pa.kids.push(k.id);
       msg=parentManaged(k)?k.name+' est inscrit. C’est toi qui réponds à sa place.':k.name+' a '+ageOf(k)+' ans : une invitation lui est envoyée pour créer son compte et répondre lui-même.';}
-    S.parents.push(pa);S.role='parent';S.meParent=pa.id;S.meKid=pa.kids[0]||null;S.me=tid;S.parview='home';AUTH=null;toast(msg);},
+    S.parents.push(pa);S.role='parent';S.meParent=pa.id;S.meKid=pa.kids[0]||null;S.me=tid;S.parview='home';AUTH=null;if(LIVE){if(!SU.sup)AUTH='wait';memInsert([{club_id:team(tid).club,team_id:tid,role:SU.sup?'supporter':'parent',player_id:pa.id}]);if(SU.sup)toast(msg);return;}toast(msg);},
   article(fd){const m=S.modal;const a={id:id('a'),club:myClub().id,kind:m.d.kind||'libre',ref:m.src==='libre'?null:m.src,title:fd.get('title').trim(),chapo:(fd.get('chapo')||'').trim(),body:(fd.get('body')||'').trim(),by:whoKey(),at:Date.now(),bravo:[],photo:m.photo||null,aud:fd.getAll('aud')};if(!a.title)return;if(S.role==='parent'){a.pending=true;a.aud=[S.me];}S.articles=S.articles||[];S.articles.push(a);if(a.pending){S.modal=null;S.parview='gazette';chatSys(S.me,whoName(a.by).split(' (')[0]+' propose un article pour la Gazette : « '+a.title+' ». À valider dans La Gazette.');toast('Article envoyé au coach pour validation');return;}S.modal={type:'readArt',id:a.id};if(S.role==='player')S.pview='club';else{S.view='club';S.sub.club='actu';}toast('Article publié dans la Gazette');},
-  login(fd){AUTH=null;toast('Connecté. Content de te revoir !');},
+  login(fd){if(LIVE){const mail=(fd.get('mail')||'').trim().toLowerCase();SU.mail=mail;sb.auth.signInWithPassword({email:mail,password:fd.get('pwd')||''}).then(({data,error})=>{if(error){toast(AUTHERR(error.message));if(/not confirmed/i.test(error.message))AUTH='checkmail';render();return;}cloudStart(data.session);});return 'async';}
+    AUTH=null;toast('Connecté. Content de te revoir !');},
   suCoach(fd){if(SU.join==='join'&&!fd.get('club')){toast('Tape la ville puis choisis ton club');return;}const fm=fd.getAll('fmts');if(!fm.length){toast('Coche au moins un format');return;}const who=(fd.get('who')||'').trim();let c;
     if(fd.get('club')){c=club(fd.get('club'));}else{const tw=townFromForm(fd,'town');c={id:id('c'),name:fd.get('name').trim(),town:tw.town,near:tw.near,lat:tw.lat,lng:tw.lng,stade:(fd.get('stade')||'').trim()||'Stade municipal',affil:'Loisir'};c.fields=[{id:id('f'),name:c.stade,address:c.town,surface:'Synthétique'}];S.clubs.push(c);[['Maillot','Vêtement adulte'],['Short','Vêtement adulte'],['Chaussettes','Chaussettes']].forEach(x=>S.items.push({id:id('i'),club:c.id,name:x[0],kind:x[1]}));}
     const t=newTeam(c.id,{cat:fd.get('cat'),lvl:fd.get('lvl'),affil:fd.get('taffil'),fmts:fm,seed:'yes'});t.coachName=who;
     if(fd.get('plays')&&!isYouth(fd.get('cat'))){const pl={id:id('p'),team:t.id,name:who||'Coach',num:S.players.filter(x=>x.team===t.id).length+1,pos:fd.get('ppos'),birth:fd.get('pbirth')||undefined,alt:[],lic:false,mode:'Virement',pot:false,sizes:{},given:{},rep:'wait',coachOf:t.id};S.players.push(pl);t.coachPlayer=pl.id;}
+    if(LIVE){const rows=[];if(!fd.get('club'))rows.push({club_id:c.id,team_id:'',role:'responsable'});rows.push({club_id:c.id,team_id:t.id,role:'coach',player_id:t.coachPlayer||null});memInsert(rows);S.role='coach';S.me=t.id;S.view='home';SU.step=3;toast(fd.get('club')?'Demande envoyée au responsable de '+c.name:'Club créé, plus que tes critères');return;}
     S.role='coach';S.me=t.id;S.view='home';SU.step=3;toast(fd.get('club')?'Demande envoyée au responsable de '+c.name+' (validée pour la démo)':'Club créé, plus que tes critères');},
-  suPlayer(fd){const tid=fd.get('team');const p={id:id('p'),team:tid,birth:fd.get('birth')||undefined,name:fd.get('name').trim(),num:S.players.filter(x=>x.team===tid).length+1,pos:fd.get('pos'),alt:[],lic:false,mode:'Virement',pot:false,sizes:{},given:{},rep:'wait',qual:{}};S.players.push(p);S.role='player';S.mePlayer=p.id;S.me=tid;S.pview='home';AUTH=null;toast('Bienvenue dans l’équipe, '+p.name+' !');},
+  suPlayer(fd){const tid=fd.get('team');if(!tid||!team(tid)){toast('Tape la ville puis choisis ton club et ton équipe');return;}const p={id:id('p'),team:tid,birth:fd.get('birth')||undefined,name:fd.get('name').trim(),num:S.players.filter(x=>x.team===tid).length+1,pos:fd.get('pos'),alt:[],lic:false,mode:'Virement',pot:false,sizes:{},given:{},rep:'wait',qual:{}};S.players.push(p);S.role='player';S.mePlayer=p.id;S.me=tid;S.pview='home';AUTH=null;if(LIVE){AUTH='wait';memInsert([{club_id:team(tid).club,team_id:tid,role:'joueur',player_id:p.id}]);return;}toast('Bienvenue dans l’équipe, '+p.name+' !');},
   send(fd){const txt=(fd.get('msg')||'').trim();if(!txt)return;const c=S.convs.find(x=>x.id===S.openConv);const o=c.a===S.me?c.b:c.a;addMsg(o,{from:S.me,text:txt});
     setTimeout(()=>{const replies=['Bien reçu, je regarde avec l’équipe.','Ça marche pour nous !','Je te redis ça ce soir.','Top, merci coach.'];c.msgs.push({from:o,text:replies[c.msgs.length%replies.length],at:Date.now()});save();render();},1800);},
   propose(fd){const o=S.modal.id;const m={id:id('m'),from:S.me,to:o,date:fd.get('date'),time:fd.get('time'),place:fd.get('place'),fmt:fd.get('fmt'),status:'pending'};if(!m.date)return;S.matches.push(m);const msg=(fd.get('msg')||'').trim();if(msg)addMsg(o,{from:S.me,text:msg});addMsg(o,{from:S.me,match:m.id});S.modal=null;toast('Proposition envoyée à '+tshort(o)+'. Passe sur ce club dans le menu Démo pour répondre.');},
@@ -1651,6 +1760,6 @@ if(!S.annSeed){S.annSeed=true;const wk=nextWeekends(8);const t1=S.teams.find(x=>
   if(t1&&others[1])S.annonces.push({id:'anMe',team:'t1',dates:wk.slice(3,6),time:'10:00',where:'home',fmt:'Foot à 11',note:'Terrain synthétique, vestiaires et douches.',at:Date.now()-72e5,responses:[{id:'rMe',team:others[1].id,date:wk[4],at:Date.now()-36e5,status:'pending'}],status:'open'});save();}
 if(!S.helpSeed){S.helpSeed=true;const u=S.teams.find(x=>x.club==='c1'&&x.cat==='U13');if(u&&S.parents){const d=iso(addDays(T0,((6-T0.getDay()+7)%7||7)+7));const opp=S.teams.find(x=>x.club!=='c1'&&x.id!==u.id&&/^U1/.test(x.cat))||S.teams.find(x=>x.club!=='c1');S.matches.push({id:'mu2',from:u.id,to:opp.id,date:d,time:'10:30',place:'c1',status:'accepted',fmt:'Foot à 8'});
   S.helps=[{id:'h1',team:u.id,club:'c1',title:'Match contre '+tshort(opp.id)+' à domicile',date:d,ref:'match:mu2',note:'Rendez-vous 9h30 au club-house',by:'coach:'+u.id,slots:[{id:'s1',role:'Buvette',need:2,who:['parent:pa2']},{id:'s2',role:'Entrées',need:1,who:[]},{id:'s3',role:'Arbitre de touche',need:2,who:[]},{id:'s4',role:'Goûter',need:1,who:[]}]}];}save();}
-render();
+if(LIVE){AUTH='loading';render();cloudInit().catch(e=>{console.warn(e);CLOUD.ready=true;AUTH='splash';render();});}else render();
 
 }
