@@ -1034,13 +1034,16 @@ function vLeagues(){const coach=isCoach();let h='';
 
 // ---------- nav avec bouton +, carte joueur, qualités ----------
 const QUALS_SEED=['Vitesse','Endurance','Frappe','Passe','Vision','Défense'];
-const QUALS=['Vitesse','Endurance','Frappe','Passe','Vision','Défense'];
+const QUALS=['Vitesse','Endurance','Physique','Frappe','Passe','Dribble','Vision','Attaque','Défense'];
 const GRPLAB={u11:'barème U11',u13:'barème U13',u15:'barème U15',u19:'barème U16 à U19',sen:'barème seniors (20 à 34 ans)',v35:'barème vétérans (35 à 44 ans)',v45:'barème vétérans (45 ans et plus)'};
 const AGEGRP=(p)=>{const ag=ageOf(p);if(ag!=null){if(ag<=11)return 'u11';if(ag<=13)return 'u13';if(ag<=15)return 'u15';if(ag<=19)return 'u19';if(ag<35)return 'sen';if(ag<45)return 'v35';return 'v45';}const t=team(p.team);const c=t?t.cat:'Seniors';const a=uAge(c);if(a<=11)return 'u11';if(a<=13)return 'u13';if(a<=15)return 'u15';if(a<=19)return 'u19';if(/\+45|\+55/.test(c))return 'v45';if(/\+35/.test(c))return 'v35';return 'sen';};
 const NORMS={sprint:{u11:[7.0,5.0],u13:[6.3,4.7],u15:[5.8,4.4],u19:[5.4,4.1],sen:[5.4,4.1],v35:[5.8,4.4],v45:[6.3,4.7]},
   vma:{u11:[9,15],u13:[10,16],u15:[11,17],u19:[12,18],sen:[12,18.5],v35:[11,17],v45:[10,16]}};
 const DIST={u11:{frappe:9,passe:8},u13:{frappe:13,passe:11},u15:{frappe:16,passe:15},u19:{frappe:16,passe:15},sen:{frappe:16,passe:15},v35:{frappe:16,passe:15},v45:{frappe:16,passe:15}};
 const GRID={Vision:[[3,'Joue tête baissée, garde souvent le ballon'],[5,'Voit le partenaire libre le plus proche'],[7,'Lève la tête et change le jeu'],[9,'Trouve la passe qui casse les lignes']],
+  Dribble:[[3,'Perd souvent le ballon sous pression'],[5,'Protège le ballon, élimine parfois un adversaire'],[7,'Élimine régulièrement en un contre un'],[9,'Fait la différence à chaque prise de balle']],
+  Physique:[[3,'Perd la plupart des duels, chute facilement'],[5,'Tient ses duels sans les dominer'],[7,'Gagne la majorité des duels, bon dans les airs'],[9,'Domine physiquement : duels, jeu de tête, résistance']],
+  Attaque:[[3,'Peu présent devant, rarement en position de tir'],[5,'Se crée quelques occasions, fait des appels simples'],[7,'Bons appels, se procure des occasions et marque'],[9,'Décisif devant le but : appels, sang-froid, finition']],
   Défense:[[3,'Se fait souvent éliminer, peu de replis'],[5,'Revient défendre, gagne des duels simples'],[7,'Bien placé, anticipe et intercepte'],[9,'Patron derrière : lit le jeu, organise, gagne ses duels']]};
 const lerp=(v,a,b)=>Math.max(1,Math.min(10,Math.round(1+9*(v-a)/(b-a))));
 const llToVma=(pal)=>8+0.5*pal;
@@ -1049,7 +1052,7 @@ function testNotes(p,r){const g=AGEGRP(p);const out={};
   const vma=r.endType==='ll'?(r.endVal>0?llToVma(r.endVal):0):r.endVal;if(vma>0){const [w,b]=NORMS.vma[g];out.Endurance=lerp(vma,w,b);}
   if(r.frappe>=0&&r.frappe!=='')out.Frappe=Math.max(1,Math.min(10,Number(r.frappe)));
   if(r.passe>=0&&r.passe!=='')out.Passe=Math.max(1,Math.min(10,Number(r.passe)));
-  if(r.Vision)out.Vision=Number(r.Vision);if(r.Défense)out.Défense=Number(r.Défense);return out;}
+  Object.keys(GRID).forEach(k=>{if(r[k])out[k]=Number(r[k]);});return out;}
 function testGuide(p){const g=AGEGRP(p);const d=DIST[g];const sp=NORMS.sprint[g],vm=NORMS.vma[g];
   const it=(t,x)=>`<div style="background:var(--paper);border-radius:12px;padding:10px 12px"><b style="font-family:Inter,sans-serif;font-size:14px">${t}</b><p style="margin:4px 0 0;font-size:13px;line-height:1.4">${x}</p></div>`;
   return `<details class="tac" style="border:2px solid var(--ink);border-radius:14px;background:#fff"><summary style="list-style:none;cursor:pointer;padding:12px 14px;font-family:Inter,sans-serif;font-weight:700;font-size:14px;display:flex;justify-content:space-between">Comment faire passer les tests <span aria-hidden="true">▾</span></summary><div style="padding:0 12px 12px;display:flex;flex-direction:column;gap:8px">
@@ -1058,7 +1061,7 @@ function testGuide(p){const g=AGEGRP(p);const d=DIST[g];const sp=NORMS.sprint[g]
   ${it('Endurance · test navette Luc Léger ou VAMEVAL','Navette de 20 m au rythme de la bande sonore, jusqu’à ce que le joueur décroche. Note le dernier palier terminé : l’appli calcule la VMA. Note 10 à '+vm[1]+' km/h, note 1 à '+vm[0]+' km/h.')}
   ${it('Frappe · 10 frappes','Ballon arrêté à '+d.frappe+' m du but, 5 du pied fort et 5 du pied faible. On compte les frappes cadrées : 7 cadrées = 7/10.')}
   ${it('Passe · 10 passes','Passe au sol à '+d.passe+' m dans une porte de 1 m (deux plots). 5 pied droit, 5 pied gauche. On compte les passes réussies.')}
-  ${it('Vision et Défense · grille d’observation','Ça ne se chronomètre pas : choisis la phrase qui décrit le mieux le joueur en match.')}
+  ${it('Physique, dribble, vision, attaque et défense · grilles d’observation','Ça ne se chronomètre pas : regarde-le en match et choisis la phrase qui le décrit le mieux.')}
   </div></details>`;}
 
 const ageOf=(p)=>{if(!p.birth)return null;const b=parse(p.birth);let a=T0.getFullYear()-b.getFullYear();if(T0.getMonth()<b.getMonth()||(T0.getMonth()===b.getMonth()&&T0.getDate()<b.getDate()))a--;return a;};
@@ -1194,8 +1197,8 @@ function testDefs(g){const d=DIST[g]||DIST.sen;return {
   svg:svgPitch(cone(150,25)+cone(170,25)+'<line x1="150" y1="25" x2="170" y2="25" stroke="#fff" stroke-dasharray="3 3"/>'+cone(160,100)+'<circle cx="160" cy="88" r="6" fill="#fff"/><line x1="160" y1="82" x2="160" y2="35" stroke="#fff" stroke-dasharray="5 5"/>'+tx(185,65,d.passe+' m','start')+tx(160,14,'porte de 1 m')),
   steps:['Fais une porte de 1 m avec 2 plots (environ un pied et demi de chaque côté du centre).','Pose le 3e plot à '+d.passe+' m en face.','Passe au sol, de l’intérieur du pied : 5 du pied droit, 5 du pied gauche.','La passe est réussie si le ballon passe entre les plots sans les toucher.','Appuie sur ✓ ou ✗ après chaque passe.'],
   err:['Passe en l’air : elle ne compte pas, la passe doit rester au sol.','Taper fort pour être sûr : on cherche la précision, pas la puissance.']},
- obs:{t:'Vision et défense',q:'Vision · Défense',dur:'Un match ou 15 min d’opposition',mat:['Rien : tu observes'],svg:'',
-  steps:['Regarde le joueur pendant un match ou une opposition à l’entraînement, sans le lui dire.','Vision : est-ce qu’il lève la tête ? Voit-il le partenaire libre ? Change-t-il le jeu ?','Défense : revient-il défendre ? Est-il bien placé ? Gagne-t-il ses duels ?','Ensuite, ouvre son profil, onglet Tests, et choisis la phrase qui lui ressemble le plus.'],err:['Noter sur un seul bon ou mauvais geste : regarde le match en entier.']}};}
+ obs:{t:'Observation en match',q:'Physique · Dribble · Vision · Attaque · Défense',dur:'Un match ou 15 min d’opposition',mat:['Rien : tu observes'],svg:'',
+  steps:['Regarde le joueur pendant un match ou une opposition à l’entraînement, sans le lui dire.','Physique : gagne-t-il ses duels ? Est-il bon dans les airs ? Tient-il jusqu’au bout ?','Dribble : garde-t-il le ballon sous pression ? Élimine-t-il en un contre un ?','Vision : est-ce qu’il lève la tête ? Voit-il le partenaire libre ? Change-t-il le jeu ?','Attaque : fait-il des appels ? Se crée-t-il des occasions ? Est-il efficace devant le but ?','Défense : revient-il défendre ? Est-il bien placé ? Gagne-t-il ses duels ?','Ensuite, ouvre son profil, onglet Tests, et choisis la phrase qui lui ressemble le plus.'],err:['Noter sur un seul bon ou mauvais geste : regarde le match en entier.']}};}
 function vTestHub(){const p0=S.players.find(x=>x.team===S.me);const T=testDefs(p0?AGEGRP(p0):'sen');
   return `<h2>Tests du groupe</h2><span class="muted">Tu n’as jamais fait de tests ? Choisis-en un : l’appli t’explique tout, fait les bips et le chrono, et calcule les notes.</span>
   ${Object.entries(T).map(([k,x])=>`<button data-a="testGuide" data-v="${k}" style="all:unset;cursor:pointer;display:flex;gap:12px;align-items:center;background:#fff;border:2px solid var(--ink);border-radius:16px;padding:12px"><span class="hl" style="width:44px;height:44px;border-radius:50%;background:var(--red);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">${esc(x.q.slice(0,3).toUpperCase())}</span><span style="flex:1"><b style="font-family:Inter,sans-serif;font-size:15px">${esc(x.t)}</b><br><span class="muted" style="font-size:12px">${esc(x.q)} · ${esc(x.dur)}</span></span><span aria-hidden="true">→</span></button>`).join('')}
@@ -1520,7 +1523,7 @@ function vModal(){
       <label class="field">Vitesse · sprint 30 m (secondes)<input name="sprint" type="number" step="0.01" min="3" max="10" inputmode="decimal" placeholder="ex. 4,65" value="${r.sprint||''}"></label>
       <div class="grid2"><label class="field">Endurance · test<select name="endType"><option value="ll" ${r.endType!=='vma'?'selected':''}>Luc Léger (palier)</option><option value="vma" ${r.endType==='vma'?'selected':''}>VMA connue (km/h)</option></select></label><label class="field">Résultat<input name="endVal" type="number" step="0.5" min="0" max="25" inputmode="decimal" placeholder="ex. palier 9" value="${r.endVal||''}"></label></div>
       <div class="grid2"><label class="field">Frappe · cadrées sur 10<input name="frappe" type="number" min="0" max="10" inputmode="numeric" placeholder="à ${DIST[g].frappe} m" value="${r.frappe??''}"></label><label class="field">Passe · réussies sur 10<input name="passe" type="number" min="0" max="10" inputmode="numeric" placeholder="à ${DIST[g].passe} m" value="${r.passe??''}"></label></div>
-      ${gr('Vision')}${gr('Défense')}
+      <span class="label" style="margin-top:4px">Observation en match · choisis la phrase qui correspond</span>${['Physique','Dribble','Vision','Attaque','Défense'].map(gr).join('')}
       <button class="btn red" type="submit">Calculer les notes</button><button class="btn ghost" type="button" data-a="close">Annuler</button></form>`;}}
   else if(m.type==='help'){h=vHelpForm();}
   else if(m.type==='ann'){h=vAnnForm();}
@@ -1821,7 +1824,7 @@ const F={
   league(fd){S.leagues=S.leagues||[];const sel=S.modal.sel||[];if(sel.length<2)return;const L={id:id('L'),name:fd.get('name').trim(),owner:S.me,teams:[S.me],invited:sel.slice(),ar:fd.get('ar')==='1',start:fd.get('start'),time:fd.get('time')||'10:00',every:Number(fd.get('every'))||7,started:false,chat:[{who:'sys',text:'Championnat créé par '+tshort(S.me)+'. Invitations envoyées.',at:Date.now()}]};S.leagues.push(L);sel.forEach(t=>{chatSys(t,tshort(S.me)+' vous invite dans le championnat « '+L.name+' » (Matchs → Championnat).');notify(team(t).club,'Invitation : championnat « '+L.name+' »');});S.modal=null;S.openLeague=L.id;S.lsub='table';toast('Invitations envoyées à '+sel.length+' équipes');},
   lchat(fd,form){const t=(fd.get('msg')||'').trim();if(!t)return;const L=S.leagues.find(x=>x.id===form.dataset.id);L.chat.push({who:whoKey(),text:t,at:Date.now()});},
   qualTests(fd){const pp=S.players.find(x=>x.id===S.modal.id);const n=(k)=>{const v=fd.get(k);return v===''||v==null?'':Number(String(v).replace(',','.'));};
-    const raw={sprint:n('sprint'),endType:fd.get('endType'),endVal:n('endVal'),frappe:n('frappe'),passe:n('passe'),Vision:fd.get('g_Vision')||'',Défense:fd.get('g_Défense')||''};const notes=testNotes(pp,raw);
+    const raw={sprint:n('sprint'),endType:fd.get('endType'),endVal:n('endVal'),frappe:n('frappe'),passe:n('passe'),...Object.fromEntries(Object.keys(GRID).map(k=>[k,fd.get('g_'+k)||'']))};const notes=testNotes(pp,raw);
     if(!Object.keys(notes).length){toast('Saisis au moins un résultat');return;}pp.qual=Object.assign({},pp.qual||{},notes);QUALS.forEach(k=>{if(pp.qual[k]==null)pp.qual[k]=5;});pp.tests={date:TODAY,raw,by:whoName(whoKey())};pp.qualSrc='tests';
     S.modal={type:'card',id:pp.id};S.openPerf=pp.id;const vma=raw.endType==='ll'&&raw.endVal>0?' · VMA estimée '+String(llToVma(raw.endVal)).replace('.',',')+' km/h':'';toast(Object.keys(notes).length+' note'+(Object.keys(notes).length>1?'s':'')+' calculée'+(Object.keys(notes).length>1?'s':'')+vma);},
   qual(fd){const pp=S.players.find(x=>x.id===S.modal.id);pp.qual={};QUALS.forEach(k=>pp.qual[k]=Number(fd.get('q_'+k))||5);pp.qualSrc='manual';S.modal={type:'card',id:pp.id};S.openPerf=pp.id;toast('Profil enregistré');},
