@@ -39,7 +39,7 @@ function lvlHint(cat,affil){const a=uAge(cat);if(affil&&affil!=='FFF')return 'Ho
   if(a<=19)return 'Foot à 11 : district, puis régional R2 et R1'+(a>=16?', et national pour les U17 et U19.':'.');
   if(cat==='Seniors'||cat==='Féminines')return 'Choisis « Loisir » si l’équipe ne joue pas en championnat : elle verra les autres équipes loisir, FSGT et UFOLEP.';
   return '';}
-function lvlChoices(t){const L=lvlsFor(t.cat,t.affil);const extra=isYouth(t.cat)?[]:['Loisir','FSGT','UFOLEP'];return [...new Set([...L,...extra,...t.acceptLvls])];}
+function lvlChoices(t){const cats=[...new Set([t.cat,...(t.acceptCats||[])])];const L=[];cats.forEach(c=>{lvlsFor(c,'FFF').forEach(x=>L.push(x));if(t.affil&&t.affil!=='FFF'&&c===t.cat)lvlsFor(c,t.affil).forEach(x=>L.push(x));});const extra=isYouth(t.cat)&&uAge(t.cat)<17?[]:['Loisir','FSGT','UFOLEP'];const all=[...new Set([...L,...extra,...t.acceptLvls])];const last=all.filter(x=>x===NOLVL);return all.filter(x=>x!==NOLVL).concat(last);}
 function levelPicker(dark,cat,affil,lvl){const cls=dark?'f':'field';affil=affil||'FFF';const L=lvlsFor(cat,affil);
   return `<label class="${cls}">Affiliation de l’équipe<select name="taffil" data-c="catPick">${AFFILS.map(a=>`<option ${a===affil?'selected':''}>${a}</option>`).join('')}</select></label>
   <div class="grid2"><label class="${cls}">Catégorie<select name="cat" data-c="catPick">${CATS.map(c=>`<option ${c===cat?'selected':''}>${c}</option>`).join('')}</select></label><label class="${cls}">Niveau<select name="lvl">${L.map(c=>`<option ${c===lvl?'selected':''}>${c}</option>`).join('')}</select></label></div>
