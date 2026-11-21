@@ -211,3 +211,6 @@ body.live .demo{display:none!important}
 .f input[type=date],.f input[type=time]{display:block;line-height:48px;text-align:left}
 /* Bande sous l'heure et la batterie dans l'appli */
 #app::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top);background:#fff;z-index:60;pointer-events:none}
+details.who{border-top:1px solid var(--line);padding-top:8px}
+details.who summary{cursor:pointer;list-style:none;display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-height:36px}
+details.who summary::-webkit-details-marker{display:none}
