@@ -1610,7 +1610,8 @@ function vModal(){
       <label class="field">Blessés (noms)<input name="inj" value="${esc(fx.inj||'')}" placeholder="ex. Karim (cheville)"></label>
       <label class="field">Changements<input name="subs" value="${esc(fx.subs||'')}" placeholder="ex. Léo pour Hugo à la mi-temps"></label>
       <label class="field">Fait marquant<input name="note" value="${esc(fx.note||'')}" placeholder="ex. Égalisation à la dernière minute"></label></div></details>`;})()}
-    <button class="btn red" type="submit">Valider</button><button class="btn ghost" type="button" data-a="close">Annuler</button></form>`;}
+    <button class="btn red" type="submit">Valider</button><button class="btn ghost" type="button" data-a="close">Annuler</button></form>${isCoach()&&x.manual?`<button class="lnk" data-a="matchDelAsk" data-id="${x.id}" style="align-self:center;color:var(--red)">Supprimer ce match (erreur de saisie)</button>`:''}`;}
+  else if(m.type==='matchDel'){const x=S.matches.find(y=>y.id===m.id);h=x?`<h2>Supprimer ce match ?</h2><span class="muted">${esc(tshort(x.from))} – ${esc(tshort(x.to))} · ${esc(cap(fdLong(x.date)))}. Le score, les buteurs, les cartons, le vote de l’homme du match et les stats liées à ce match seront effacés. Les articles déjà publiés restent dans la Gazette.</span><button class="btn red" data-a="matchDel" data-id="${x.id}">Oui, supprimer le match</button><button class="btn ghost" data-a="close">Annuler</button>`:'';}
   else if(m.type==='club'||m.type==='team'){
     const isClub=m.type==='club';
     h=`<h2>${isClub?'Créer un club':'Nouvelle équipe'}</h2><span class="muted">${isClub?'Le club apparaît tout de suite dans la démo, et tu deviens son coach.':'Ajoute une catégorie à '+esc(myClub().name)+'.'}</span>
@@ -1729,6 +1730,8 @@ const A={
   trEditor(d){const c=myClub();if(!tresoCan(c.id))return;const tr=tresoOf(c.id,true);tr.editors=tr.editors||[];const i=tr.editors.findIndex(e=>e.uid===d.v);if(i>=0){tr.editors.splice(i,1);toast(d.n+' n’est plus trésorier');}else{tr.editors.push({uid:d.v,name:d.n});toast(d.n+' est maintenant trésorier');}},
   artPin(d){const a=(S.articles||[]).find(x=>x.id===d.id);if(!a)return;a.pin=!a.pin;toast(a.pin?'Article épinglé en haut de la Gazette':'Article désépinglé');},
   artEdit(d){const a=(S.articles||[]).find(x=>x.id===d.id);if(!a)return;S.modal={type:'article',src:a.ref||'libre',d:{title:a.title,chapo:a.chapo||'',body:a.body||'',kind:a.kind},photo:a.photo||null,edit:a.id};},
+  matchDelAsk(d){S.modal={type:'matchDel',id:d.id};},
+  matchDel(d){const m=S.matches.find(x=>x.id===d.id);if(!m||!m.manual||!isCoach())return;if(m.status==='played'&&m.present)S.players.forEach(p=>{if(m.present.includes(p.id)&&p.mp)p.mp--;});S.matches=S.matches.filter(x=>x.id!==d.id);if(S.carpool)delete S.carpool[d.id];S.modal=null;toast('Match supprimé');},
   artRedo(){S.modal.d=draftArt(S.modal.src);toast('Nouvelle version du brouillon');},
   quitDemo(){try{localStorage.removeItem('mercato-mode');}catch(e){}location.reload();return 'keep';},
   logout(){cloudLogout();return 'keep';},
