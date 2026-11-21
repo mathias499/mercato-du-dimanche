@@ -365,6 +365,7 @@ function vLoading(){return `<div class="wrap" style="display:flex;align-items:ce
 function vAuth(){const inner=AUTH==='splash'?vSplash():AUTH==='login'?vLogin():AUTH==='account'?vAccount():AUTH==='checkmail'?vCheckMail():AUTH==='forgot'?vForgot():AUTH==='newpwd'?vNewPwd():AUTH==='wait'?vWait():AUTH==='loading'?vLoading():vSignup();
   let h=`<div class="auth" role="dialog" aria-modal="true" aria-label="Le Mercato du dimanche">${inner}</div>`;
   if(LIVE&&AUTH==='signup'){h=h.replace(/<label class="f">E-mail<input name="mail" type="email" required autocomplete="email"><\/label><label class="f">Mot de passe<input name="pwd" type="password" required[^>]*><\/label>/g,'').replace(/<button class="lnk" data-a="auth" data-v="login">Déjà un compte \? <b style="color:#fff">Connecte-toi<\/b><\/button>/,'<button class="lnk" data-a="logout">Se déconnecter</button>').replace(/name="(who|name)" required autocomplete="given-name"/g,`name="$1" required autocomplete="given-name" value="${esc(CLOUD.prenom)}"`);}
+  if(LIVE&&AUTH==='signup'&&SU.step===3)h=h.replace(/<button class="back" data-a="auth" data-v="su2" aria-label="Retour">←<\/button>/,'');
   if(LIVE&&AUTH==='splash')h=h.replace('<button class="lnk" data-a="auth" data-v="demo">Découvrir la démo sans compte</button>','');
   if(LIVE&&AUTH==='login')h=h.replace(/<div class="or">ou<\/div><div class="soc">.*?<\/div>/s,'').replace('data-a="toastMsg" data-v="Un lien de réinitialisation t’a été envoyé par e-mail."','data-a="auth" data-v="forgot"');
   if(!LIVE&&AUTH==='splash')h=h.replace('Découvrir la démo sans compte','Quitter la démo').replace('data-a="auth" data-v="demo">Quitter','data-a="quitDemo">Quitter');
@@ -432,8 +433,60 @@ async function cloudInit(){if(!LIVE)return;
 async function memInsert(rows){for(const r of rows){const {data,error}=await sb.from('memberships').insert(r).select();if(error)console.warn(error.message);if(data)CLOUD.mem.push(...data);}resolveIdentity();render();}
 async function cloudLogout(){try{await sb.auth.signOut();}catch(e){}try{localStorage.removeItem(KEY);}catch(e){}location.reload();}
 const AUTHERR=(m)=>/already registered|already been registered/i.test(m)?'Un compte existe déjà avec cet e-mail : connecte-toi.':/Invalid login/i.test(m)?'E-mail ou mot de passe incorrect.':/not confirmed/i.test(m)?'Confirme d’abord ton e-mail : clique sur le lien reçu (regarde aussi dans les spams).':/at least|weak|short/i.test(m)?'Mot de passe trop court : 8 caractères minimum.':/rate limit/i.test(m)?'Trop d’essais : réessaie dans quelques minutes.':m;
+
+// ══════════ GUIDE DE DÉCOUVERTE (première connexion) ══════════
+let TOUR=null;
+const TOURS={
+  coach:[
+    {t:'Bienvenue sur le Mercato !',x:'Découvre l’appli en 1 minute. Suis les flèches, on te montre l’essentiel.'},
+    {sel:'[data-pend]',t:'Tes joueurs arrivent ici',x:'Quand un joueur ou un parent rejoint ton club, sa demande s’affiche ici. Appuie sur Accepter pour lui ouvrir l’accès.'},
+    {sel:'.carousel,main .hero',t:'À la une',x:'Ton prochain match, en grand. Tant que tu n’en as pas, appuie sur « Trouver un match » pour en chercher un.'},
+    {sel:'main .lnk[data-v=matchs][data-s=find]',t:'Ils cherchent un match',x:'Les équipes proches qui cherchent un adversaire. Appuie sur une date proposée, puis sur « J’accepte cette date ».'},
+    {sel:'.nav2 [data-a=go][data-v=matchs]',t:'Trouver un match',x:'Coche tes jours libres : les équipes compatibles (catégorie, niveau, distance) s’affichent. Tu peux aussi publier « Je cherche un match ».'},
+    {sel:'.nav2 .plus',t:'Le bouton +',x:'Tes actions rapides en un geste : proposer un match, convoquer, créer un événement, écrire un article…'},
+    {sel:'.nav2 [data-a=go][data-v=tournois]',t:'Tournois',x:'Inscris ton équipe aux tournois du coin, ou organise le tien : poules, chrono, scores en direct et arbitres.'},
+    {sel:'.nav2 [data-a=go][data-v=club]',t:'Mon club',x:'Ton effectif, les convocations, la compo, les entraînements, la Gazette du club et les coups de main (buvette, arbitre…).'},
+    {sel:'[data-a=go][data-v=settings]',t:'Réglages',x:'Ton équipe, tes critères de match… et le bouton pour revoir ce guide quand tu veux.'},
+    {t:'C’est parti !',x:'Première chose à faire : dis à tes joueurs (ou à leurs parents) de créer leur compte et de choisir ton club. Tu valideras leurs demandes sur ton accueil.'}],
+  player:[
+    {t:'Bienvenue dans l’équipe !',x:'Découvre l’appli en 1 minute. Suis les flèches.'},
+    {sel:'.carousel,main .hero',t:'Ton prochain match',x:'La convocation arrive ici : réponds présent ou absent en un geste, ton coach le voit tout de suite.'},
+    {sel:'.nav2 [data-a=pgo][data-v=stats]',t:'Tes stats',x:'Tes buts, tes passes, tes matchs joués et ton profil de performance.'},
+    {sel:'.nav2 .plus',t:'Le bouton +',x:'Prévenir d’une absence, proposer du covoiturage… en un geste.'},
+    {sel:'.nav2 [data-a=pgo][data-v=club]',t:'Vie du club',x:'Les événements, la Gazette, les photos et les coups de main pour le club.'},
+    {sel:'.nav2 [data-a=pgo][data-v=chat]',t:'Le chat',x:'Discute avec ton équipe et ton coach.'},
+    {sel:'[data-a=pgo][data-v=me]',t:'Mon profil',x:'Ta photo, ton poste… et le bouton pour revoir ce guide.'},
+    {t:'C’est parti !',x:'Pense à répondre aux convocations dès qu’elles arrivent : ton coach compte sur toi.'}],
+  parent:[
+    {t:'Bienvenue !',x:'Découvre l’appli en 1 minute. Suis les flèches.'},
+    {sel:'main',t:'Ton accueil',x:'Le prochain match, la convocation, le live pendant le match et les infos du club, au même endroit.'},
+    {sel:'.nav2 .plus',t:'Le bouton +',x:'Répondre à une convocation, proposer des places en covoiturage, prévenir d’une absence…'},
+    {sel:'.nav2 [data-a=prgo][data-v=matchs]',t:'Matchs',x:'Le calendrier, les résultats et le live : buteurs et passeurs en direct.'},
+    {sel:'.nav2 [data-a=prgo][data-v=rank]',t:'Classements',x:'Le classement de l’équipe en championnat et en tournoi.'},
+    {sel:'.nav2 [data-a=prgo][data-v=gazette]',t:'La Gazette',x:'Les articles du club. Tu peux aussi en proposer un : le coach le valide avant publication.'},
+    {t:'C’est parti !',x:'Tu peux revoir ce guide à tout moment, en bas de ton accueil.'}]};
+const tourKey=()=>'mercato-tour-'+(S.role||'')+'-'+(CLOUD.uid||'demo');
+function tourStart(force){if(TOUR)return;const st=(TOURS[S.role]||[]).filter(x=>!x.sel||document.querySelector(x.sel));if(!st.length)return;if(!force){try{if(localStorage.getItem(tourKey()))return;}catch(e){}}TOUR={steps:st,i:0};tourShow();}
+function tourEnd(){try{localStorage.setItem(tourKey(),'1');}catch(e){}TOUR=null;const o=document.getElementById('tour');if(o)o.remove();}
+function tourShow(){if(!TOUR)return;let st=TOUR.steps[TOUR.i];let el=st&&st.sel?document.querySelector(st.sel):null;
+  while(st&&st.sel&&!el){TOUR.i++;st=TOUR.steps[TOUR.i];el=st&&st.sel?document.querySelector(st.sel):null;}
+  if(!st){tourEnd();return;}
+  let o=document.getElementById('tour');if(!o){o=document.createElement('div');o.id='tour';document.body.appendChild(o);}
+  const n=TOUR.steps.length,last=TOUR.i===n-1;
+  const bubble=`<div class="tour-b" role="dialog" aria-live="polite"><div class="tour-n">${TOUR.i+1} / ${n}</div><b>${esc(st.t)}</b><p>${esc(st.x)}</p><div class="tour-btns">${last?'':'<button data-tour="skip">Passer</button>'}<button data-tour="next" class="tour-go">${last?'C’est parti !':'Suivant →'}</button></div></div>`;
+  if(!el){o.innerHTML=`<div class="tour-dim"></div><div class="tour-center">${bubble}</div>`;return;}
+  if(!el.closest('.nav2,.head'))el.scrollIntoView({block:'center'});
+  requestAnimationFrame(()=>{const r=el.getBoundingClientRect(),pad=6,vh=innerHeight;const big=r.height>vh*0.5;
+    const top=big?Math.max(70,r.top):r.top,h=big?Math.min(vh*0.35,r.height):r.height;
+    const below=top+h+pad+190<vh;
+    o.innerHTML=`<div class="tour-spot" style="left:${r.left-pad}px;top:${top-pad}px;width:${r.width+pad*2}px;height:${h+pad*2}px"></div>
+      <div class="tour-arrow ${below?'up':'down'}" style="left:${Math.min(innerWidth-30,Math.max(14,r.left+r.width/2-10))}px;top:${below?top+h+pad+4:top-pad-24}px"></div>
+      <div class="tour-wrap" style="${below?`top:${top+h+pad+24}px`:`bottom:${vh-(top-pad)+24}px`}">${bubble}</div>`;});}
+document.addEventListener('click',(e)=>{const b=e.target.closest('[data-tour]');if(!b)return;e.preventDefault();e.stopPropagation();if(b.dataset.tour==='skip'){tourEnd();return;}TOUR.i++;if(TOUR.i>=TOUR.steps.length)tourEnd();else tourShow();},true);
+addEventListener('resize',()=>{if(TOUR)tourShow();});
 function afterRender(){if(LIVE&&!AUTH&&!REFMODE){const mn=document.querySelector('main');const show=(S.role==='coach'&&S.view==='settings')||(S.role==='player'&&S.pview==='me')||(S.role==='parent'&&(S.parview||'home')==='home');
-    if(mn&&show&&!mn.querySelector('[data-out]'))mn.insertAdjacentHTML('beforeend','<div style="text-align:center;margin:28px 0 12px"><button class="btn ghost" data-out data-a="logout">Se déconnecter</button></div>');
+    if(mn&&show&&!mn.querySelector('[data-out]'))mn.insertAdjacentHTML('beforeend','<div style="text-align:center;margin:28px 0 12px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap"><button class="btn ghost" data-a="tourAgain">Revoir le guide</button><button class="btn ghost" data-out data-a="logout">Se déconnecter</button></div>');
+    if(!TOUR&&!S.modal&&S.role){setTimeout(()=>{if(!AUTH&&!S.modal)tourStart(false);},700);}
     if(S.role==='coach'&&S.view==='home'&&mn&&CLOUD.pending.length&&!mn.querySelector('[data-pend]'))mn.insertAdjacentHTML('afterbegin','<div data-pend>'+pendingCard()+'</div>');}
 document.querySelectorAll('.carousel').forEach(c=>{c.addEventListener('scroll',()=>{const w=c.firstElementChild?c.firstElementChild.offsetWidth+10:1;const i=Math.round(c.scrollLeft/w);const d=c.parentNode.querySelector('.dots');if(d)[...d.children].forEach((x,k)=>x.classList.toggle('on',k===i));},{passive:true});});}
 function render(){renderInner();afterRender();}
@@ -1435,6 +1488,7 @@ function newTeam(clubId,f){const affil=f.affil||'FFF';const t={id:id('t'),club:c
   if(f.seed){weekends.forEach(d=>t.free[d]=true);if(!LIVE)seedPlayers(t.id,f.fmts.includes('Foot à 11')?12:9);}
   S.teams.push(t);return t;}
 const A={
+  tourAgain(){S.view='home';S.pview='home';S.parview='home';window.scrollTo&&window.scrollTo(0,0);setTimeout(()=>tourStart(true),300);},
   quitDemo(){try{localStorage.removeItem('mercato-mode');}catch(e){}location.reload();return 'keep';},
   logout(){cloudLogout();return 'keep';},
   async resendMail(){const {error}=await sb.auth.resend({type:'signup',email:SU.mail,options:{emailRedirectTo:location.origin}});toast(error?AUTHERR(error.message):'Mail renvoyé');render();return 'keep';},
@@ -1541,7 +1595,8 @@ const A={
   auth(d){if(LIVE&&d.v==='demo'){try{localStorage.setItem('mercato-mode','demo');}catch(e){}location.reload();return 'keep';}
     if(LIVE&&d.v==='signup'&&!CLOUD.session){AUTH='account';return;}
     if(LIVE&&d.v==='done'){AUTH=null;SU.step=1;resolveIdentity();if(!AUTH)toast('Bienvenue ! Ton club est prêt.');return;}
-    if(LIVE&&CLOUD.session&&['splash','login','su1','signup'].includes(d.v)&&!CLOUD.mem.some(m=>m.statut==='actif')){SU.step=1;AUTH='signup';return;}
+    if(LIVE&&CLOUD.session&&d.v==='splash'&&AUTH==='signup'&&SU.step<=1&&!CLOUD.mem.some(m=>m.statut==='actif')){cloudLogout();return 'keep';}
+    if(LIVE&&CLOUD.session&&['login','signup'].includes(d.v)&&!CLOUD.mem.some(m=>m.statut==='actif')){SU.step=1;SU.role=null;AUTH='signup';return;}
     if(d.v==='demo'||d.v==='done'){AUTH=null;if(d.v==='done')toast('Bienvenue ! Ton club est prêt.');window.scrollTo&&window.scrollTo(0,0);return;}if(d.v==='su1'){SU.step=1;AUTH='signup';return;}if(d.v==='su2'){SU.step=2;return;}if(d.v==='signup'){SU.step=1;SU.role=null;}AUTH=d.v;try{document.querySelector('.auth').scrollTop=0;}catch(e){}},
   mode(d){if(d.v==='player'&&isCoach()){const t=me();S.role='player';S.mePlayer=t.coachPlayer;S.pview='home';S.modal=null;toast('Espace joueur');}else if(d.v==='coach'&&S.role==='player'){const p=myPlayer();S.role='coach';S.me=p.coachOf;S.modal=null;toast('Espace coach');}},
   togglePlay(){const t=me();if(t.coachPlayer){const p=S.players.find(x=>x.id===t.coachPlayer);if(p)delete p.coachOf;delete t.coachPlayer;toast('Tu n’es plus joueur de l’équipe');return;}const pl={id:id('p'),team:t.id,name:t.coachName||'Coach',num:S.players.filter(x=>x.team===t.id).length+1,pos:'Milieu',alt:[],lic:false,mode:'Virement',pot:false,sizes:{},given:{},rep:'wait',coachOf:t.id};S.players.push(pl);t.coachPlayer=pl.id;toast('Ton espace joueur est créé');},

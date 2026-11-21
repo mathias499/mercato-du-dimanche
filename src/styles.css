@@ -169,3 +169,29 @@ nav.tabs button.on{font-weight:800;color:var(--red)}
 .dots span.on{width:20px;background:var(--red)}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 body.live .demo{display:none!important}
+/* Guide de découverte */
+#tour{position:fixed;inset:0;z-index:9999;font-family:Inter,sans-serif}
+#tour .tour-dim{position:absolute;inset:0;background:rgba(8,8,10,.82)}
+#tour .tour-spot{position:absolute;border-radius:14px;box-shadow:0 0 0 9999px rgba(8,8,10,.82);outline:3px solid #fff;transition:all .25s ease;pointer-events:none}
+#tour .tour-center{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:20px}
+#tour .tour-wrap{position:absolute;left:14px;right:14px;display:flex;justify-content:center}
+#tour .tour-b{background:#fff;color:#111;border-radius:18px;padding:18px 18px 14px;max-width:380px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.4);animation:tourIn .25s ease}
+#tour .tour-b b{display:block;font-family:Oswald,Inter,sans-serif;text-transform:uppercase;font-size:21px;letter-spacing:.3px;margin:2px 0 6px}
+#tour .tour-b p{margin:0 0 14px;font-size:15px;line-height:1.45;color:#333}
+#tour .tour-n{font-size:12px;font-weight:700;color:#c8102e;letter-spacing:.5px}
+#tour .tour-btns{display:flex;gap:10px;justify-content:flex-end}
+#tour .tour-btns button{min-height:44px;padding:0 16px;border-radius:12px;border:2px solid #111;background:#fff;font-weight:700;font-size:15px;cursor:pointer}
+#tour .tour-btns .tour-go{background:#c8102e;border-color:#c8102e;color:#fff}
+#tour .tour-arrow{position:absolute;width:0;height:0;border-left:10px solid transparent;border-right:10px solid transparent;animation:tourBob 1s ease-in-out infinite}
+#tour .tour-arrow.up{border-bottom:16px solid #fff}
+#tour .tour-arrow.down{border-top:16px solid #fff}
+@keyframes tourIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes tourBob{50%{transform:translateY(-5px)}}
+/* iPhone : rien sous l'heure et la batterie */
+.back{top:calc(env(safe-area-inset-top) + 14px)!important}
+.wrap.mini .wv.top{height:calc(150px + env(safe-area-inset-top))!important}
+.wrap.mini .form{padding-top:calc(120px + env(safe-area-inset-top))}
+.head{padding-top:calc(env(safe-area-inset-top) + 12px)!important}
+.toast{bottom:calc(96px + env(safe-area-inset-bottom))!important}
+.sheet{padding-bottom:calc(24px + env(safe-area-inset-bottom))!important}
+#tour .tour-center{padding-top:calc(env(safe-area-inset-top) + 20px)}
