@@ -202,3 +202,12 @@ body.live .demo{display:none!important}
 /* Bande sombre sous l'heure et la batterie pendant le défilement */
 .auth::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top);background:#0B0B0F;z-index:50}
 .grid2>*{min-width:0}.grid2 select,.grid2 input{width:100%;max-width:100%;min-width:0;box-sizing:border-box}
+/* iPhone : champs alignés, même largeur, sans débordement */
+.grid2{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.field input,.field select,.field textarea{-webkit-appearance:none;appearance:none;border-radius:10px;width:100%;max-width:100%;min-width:0;box-sizing:border-box;font-size:16px}
+.field input[type=time],.field input[type=date],.field input[type=number]{display:block;line-height:42px;text-align:left}
+.field select,.auth .f select{-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23888' stroke-width='2'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px}
+.f input,.auth .f select{width:100%;max-width:100%;min-width:0;box-sizing:border-box;-webkit-appearance:none;appearance:none}
+.f input[type=date],.f input[type=time]{display:block;line-height:48px;text-align:left}
+/* Bande sous l'heure et la batterie dans l'appli */
+#app::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top);background:#fff;z-index:60;pointer-events:none}
