@@ -201,3 +201,4 @@ body.live .demo{display:none!important}
 .auth [data-townres]{margin-top:2px!important;gap:8px!important}
 /* Bande sombre sous l'heure et la batterie pendant le défilement */
 .auth::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top);background:#0B0B0F;z-index:50}
+.grid2>*{min-width:0}.grid2 select,.grid2 input{width:100%;max-width:100%;min-width:0;box-sizing:border-box}
