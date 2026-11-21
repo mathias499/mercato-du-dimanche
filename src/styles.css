@@ -214,3 +214,10 @@ body.live .demo{display:none!important}
 details.who{border-top:1px solid var(--line);padding-top:8px}
 details.who summary{cursor:pointer;list-style:none;display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-height:36px}
 details.who summary::-webkit-details-marker{display:none}
+/* Curseurs (profil de performance) : visibles sur iPhone */
+.field input[type=range],input[type=range]{-webkit-appearance:none;appearance:none;width:100%;min-height:36px;height:36px;border:none!important;background:transparent!important;padding:0;border-radius:0;line-height:normal}
+input[type=range]::-webkit-slider-runnable-track{height:8px;border-radius:4px;background:#d9d5cc}
+input[type=range]::-moz-range-track{height:8px;border-radius:4px;background:#d9d5cc}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;border-radius:50%;background:var(--red);border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35);margin-top:-10px}
+input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;background:var(--red);border:3px solid #fff}
+.field input[type=checkbox],.field input[type=radio]{-webkit-appearance:auto;appearance:auto;width:auto;min-height:0}
