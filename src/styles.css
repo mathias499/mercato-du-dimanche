@@ -237,3 +237,8 @@ details.fold>summary::-webkit-details-marker{display:none}
 details.fold>summary::after{content:"▾";position:absolute;right:4px;top:50%;transform:translateY(-50%);font-size:16px;transition:transform .2s}
 details.fold[open]>summary::after{transform:translateY(-50%) rotate(180deg)}
 details.fold.sub{background:var(--paper);border:none;border-radius:12px;padding:4px 12px 8px}
+
+/* choix du journal */
+.paperpick .pp{opacity:.55;transition:opacity .15s}
+.paperpick input:checked+.pp{opacity:1;outline:3px solid var(--ink);outline-offset:2px}
+.paperpick input:checked+.pp::after{content:'✓ Choisi';font-family:Inter,sans-serif;font-size:12px;font-weight:800}
