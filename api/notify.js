@@ -27,6 +27,22 @@ export default async function handler(req, res) {
     const texte = String(corps.body || '').slice(0, 220)
     const lien = String(corps.url || '/').slice(0, 200)
 
+    // Message au créateur de l'appli : le compte qui a créé le tout premier club
+    if (scope === 'admin') {
+      const { data: premier } = await admin.from('memberships').select('user_id').eq('role', 'responsable')
+        .order('created_at', { ascending: true }).limit(1)
+      const cible = premier && premier[0] && premier[0].user_id
+      if (!cible || cible === moi) return res.status(200).json({ ok: true, envoyes: 0 })
+      const { data: abos } = await admin.from('push_subs').select('endpoint, sub').eq('user_id', cible)
+      const charge = JSON.stringify({ title: titre, body: texte, url: lien })
+      let envoyes = 0
+      await Promise.all((abos || []).map(async (a) => {
+        try { await webpush.sendNotification(a.sub, charge, { TTL: 86400 }); envoyes++ }
+        catch (e) { if (e.statusCode === 404 || e.statusCode === 410) await admin.from('push_subs').delete().eq('endpoint', a.endpoint) }
+      }))
+      return res.status(200).json({ ok: true, envoyes })
+    }
+
     // Club concerné
     let club = id, equipe = null
     if (scope === 'team') {
