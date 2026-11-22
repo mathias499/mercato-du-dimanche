@@ -62,6 +62,7 @@ export default async function handler(req, res) {
     const { data: adh } = await q
     const dest = [...new Set((adh || [])
       .filter((m) => scope !== 'team' || m.team_id === equipe || m.role === 'responsable')
+      .filter((m) => !corps.membres || m.role !== 'supporter')
       .map((m) => m.user_id))].filter((x) => x !== moi)
     if (!dest.length) return res.status(200).json({ ok: true, envoyes: 0 })
 
