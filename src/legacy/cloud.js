@@ -9,7 +9,7 @@ export const sb = createClient(SB_URL, SB_KEY, {
 })
 
 // Collections (tableaux d'objets avec un id) et dictionnaires synchronisés
-export const COLS = ['clubs','teams','players','matches','convs','tournaments','posts','sponsors','forum','items','collectes','trainings','parents','events','articles','helps','annonces','leagues','notifs','comments','treso','privs']
+export const COLS = ['clubs','teams','players','matches','convs','tournaments','posts','sponsors','forum','items','collectes','trainings','parents','events','articles','helps','annonces','leagues','notifs','comments','treso','privs','seances']
 export const MAPS = ['compo','chats','trainRsvp','trainState','carpool','licPrice']
 
 // Envoi des photos (images en base64 dans les données) vers le stockage Supabase

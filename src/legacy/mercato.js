@@ -404,6 +404,7 @@ function docMeta(col,o,key){const tc=(tid)=>{const t=S.teams.find(x=>x.id===tid)
     case 'leagues':c1=tc(o.owner);vis='public';break;
     case 'treso':c1=o.club;vis='staff';break;
     case 'privs':c1=o.club;vis='staff';break;
+    case 'seances':c1=o.club;break;
     case 'comments':{c1=o.club;const ar=(S.articles||[]).find(x=>x.id===o.art);vis=ar&&ar.priv?'club':'supporters';break;}
     case 'compo':c1=tc(key);vis='supporters';break;case 'chats':c1=tc(key);break;
     case 'trainRsvp':case 'trainState':{const tr=(S.trainings||[]).find(x=>x.id===String(key).split('@')[0]);c1=tr?tc(tr.team):null;break;}
@@ -813,13 +814,14 @@ function vTour(r){
 function vClub(){
   const c=myClub();const tids=teamsOfClub(c.id);
   let h=`<div class="row" style="justify-content:space-between"><span class="muted">${esc(c.town+' · '+c.affil+' · '+tids.length+' équipe'+(tids.length>1?'s':''))} · ${supCount(c.id)} supporter${supCount(c.id)>1?'s':''}</span><button class="lnk" data-a="newTeam">+ Équipe</button></div>`;
-  const CLUBTABS=[['actu','La Gazette (actu du club)'],['agenda','Agenda (entraînements, événements)'],['compo','Compo et convocation'],['squad','Effectif'],['lic','Licences'],['caisse','Caisse'],['treso','Trésorerie'],['tenues','Tenues'],['photos','Photos'],['spons','Sponsors'],['chat','Chat de l’équipe']];
+  const CLUBTABS=[['actu','La Gazette (actu du club)'],['agenda','Agenda (entraînements, événements)'],['compo','Compo et convocation'],['seances','Séances d’entraînement'],['squad','Effectif'],['lic','Licences'],['caisse','Caisse'],['treso','Trésorerie'],['tenues','Tenues'],['photos','Photos'],['spons','Sponsors'],['chat','Chat de l’équipe']];
   if(S.sub.club==='hub'){return h+clubHub(c);}
   h+=`<button class="lnk" data-a="clubTo" data-v="hub" style="align-self:flex-start">← Toutes les rubriques</button><label class="sr" for="clubsub">Rubrique</label><div style="position:relative"><select id="clubsub" data-c="clubSub" style="width:100%;min-height:52px;border:3px solid var(--ink);background:#fff;font-family:Oswald,sans-serif;font-size:20px;font-weight:700;text-transform:uppercase;padding:0 40px 0 12px;appearance:none;-webkit-appearance:none">${CLUBTABS.map(x=>`<option value="${x[0]}" ${S.sub.club===x[0]?'selected':''}>${x[1]}</option>`).join('')}</select><span aria-hidden="true" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:18px;pointer-events:none">▾</span></div>`;
   const t=me();const pl=S.players.filter(p=>p.team===t.id);
   if(S.sub.club==='actu'){h+=vGazette(c);}
   else if(S.sub.club==='agenda'){h+=vAgendaCoach(c);}
   else if(S.sub.club==='chat'){h+=dmListCoach(t.id)+vChat(t.id);}
+  else if(S.sub.club==='seances'){h+=vSeances(c);}
   else if(S.sub.club==='compo'){
     const m=nextMatch();const cp0=S.compo[t.id];const fmtC=(cp0&&FMTS.includes(cp0.fmt))?cp0.fmt:((m&&m.fmt&&t.fmts.includes(m.fmt))?m.fmt:t.fmts[0]);const forms=FORMATIONS[fmtC];const cp=cp0||{f:Object.keys(forms)[0],slots:forms[Object.keys(forms)[0]].map(()=>''),sent:false};cp.fmt=fmtC;
     if(!forms[cp.f])cp.f=Object.keys(forms)[0];const coords=forms[cp.f];S.compo[t.id]=cp;
@@ -1001,7 +1003,7 @@ function vPlayer(){const p=myPlayer();const t=team(p.team);const c=club(t.club);
     const todo=[];toFill(t.id).forEach(x=>todo.push(`<button class="row" data-a="score" data-id="${x.id}" style="width:100%;border:none;background:var(--paper);padding:12px;text-align:left;font-family:Inter,sans-serif"><span class="grow"><b>Résultat à saisir</b><br><span class="muted">${esc(tshort(x.from))} – ${esc(tshort(x.to))} · ${esc(fdLong(x.date))}</span></span><span aria-hidden="true">→</span></button>`));
     const lp=lastPlayed(t.id);if(lp&&lp.motm&&!motmClosed(lp)&&!((lp.motm.votes||{})[whoKey()])&&(lp.present||[p.id]).includes(p.id))todo.push(`<button class="row" data-a="pgo" data-v="stats" style="width:100%;border:none;background:#FFF7E6;padding:12px;text-align:left;font-family:Inter,sans-serif"><span class="grow"><b>Vote pour l’homme du match</b><br><span class="muted">Ton podium 3-2-1 contre ${esc(tshort(other2(lp,t.id)))}</span></span><span aria-hidden="true">→</span></button>`);
     if(todo.length)h+=`<div style="display:flex;flex-direction:column;gap:6px">${todo.join('')}</div>`;
-    h+=helpsBlock(t.id)+`<span class="kicker">Prochains entraînements</span>${nextTrainCard(p)}`;
+    h+=helpsBlock(t.id)+`<span class="kicker">Prochains entraînements</span>${seaPlayerCard(t.id)}${nextTrainCard(p)}`;
     h+=(LIVE?`<button class="btn ghost" data-a="pgo" data-v="chat">Écrire à l’équipe</button>`:`<div class="grid2"><button class="btn ghost" data-a="pgo" data-v="chat">Écrire à l’équipe</button><button class="btn ghost" data-a="vocalGo">Message vocal</button></div>`);
     return h;}
   if(v==='stats'){const pl=S.players.filter(x=>x.team===t.id);const lgs=(S.leagues||[]).filter(L=>L.started&&L.teams.includes(t.id));return bigCard(p,false)+offBtn(t.id)+lgs.map(L=>`<span class="kicker">Championnat · ${esc(L.name)}</span>${tableHTML(L,t.id)}<details><summary class="label" style="min-height:40px;display:flex;align-items:center;cursor:pointer">Calendrier du championnat</summary>${calendarHTML(L,false)}</details>`).join('')+motmCard(t.id)+rankings(t.id)+`<details><summary class="label" style="min-height:44px;display:flex;align-items:center;cursor:pointer">Voir l’effectif (${pl.length} joueurs)</summary><div style="display:flex;flex-direction:column;gap:10px">${squadCards(pl,false)}</div>${[].map(x=>`<div class="item row" style="flex-direction:row"><span class="hl" style="width:30px;font-size:20px;color:var(--red)">${x.num||'–'}</span><span class="grow"><b style="font-family:Inter,sans-serif;font-size:14px">${esc(x.name)}${x.id===p.id?' (moi)':''}</b><br><span class="muted">${esc(x.pos)}${(x.alt||[]).length?' · aussi '+esc(x.alt.join(', ')):''}</span></span></div>`).join('')}</details>`;}
@@ -1068,6 +1070,99 @@ function dmBanner(){if(S.role==='player'){const n=dmUnread(privDoc(S.mePlayer,'j
   if(S.role==='parent'||!S.me)return '';const n=S.players.filter(x=>x.team===S.me).reduce((a,x)=>a+dmUnread(privDoc(x.id,'j'),'s'),0);return n?`<button class="btn" data-a="dmGoCoach" style="background:var(--ink);color:#fff">💬 ${n} message${n>1?'s':''} privé${n>1?'s':''} de joueur${n>1?'s':''}</button>`:'';}
 function privBlock(pl,coach){const tel=privVal(pl.id,'tel'),lic=privVal(pl.id,'licno');
   return `<div class="panel" style="background:#fff;border:1px solid var(--line)"><span class="label">Coordonnées ${coach?'(visibles par le joueur et les coachs seulement)':''}</span><div class="grid2"><label class="field">Téléphone<input type="tel" inputmode="tel" autocomplete="tel" placeholder="06 12 34 56 78" value="${esc(tel)}" data-c="privField" data-k="tel" data-id="${pl.id}"></label><label class="field">N° de licence<input autocomplete="off" placeholder="ex. 2543210987" value="${esc(lic)}" data-c="privField" data-k="licno" data-id="${pl.id}"></label></div>${coach?`<div class="row" style="gap:8px">${tel?`<a class="btn small ghost" style="flex:1;text-decoration:none;text-align:center" href="tel:${esc(tel.replace(/[^0-9+]/g,''))}">📞 Appeler</a>`:''}${privDoc(pl.id,'j')?`<button class="btn small ghost" style="flex:1" data-a="dmOpen" data-id="${pl.id}">💬 Message privé</button>`:''}</div>`:'<span class="muted" style="font-size:12px">🔒 Seuls toi et tes coachs voyez ces deux informations.</span>'}</div>`;}
+// ---------- séances d'entraînement : idées prêtes à l'emploi + séances du coach ----------
+const SEA_PUBS=['U6-U9','U10-U13','U14-U18','Adultes'];
+const SEA_LAB={'U6-U9':'Enfants 5-8 ans','U10-U13':'Enfants 9-12 ans','U14-U18':'Ados 13-17 ans','Adultes':'Adultes (seniors, vétérans, loisir)'};
+const SEA_LIB=[
+{id:'L1',pub:'U6-U9',theme:'Conduite de balle',title:'Le ballon, mon copain',dur:60,mat:'1 ballon par enfant, plots, chasubles, petits buts',steps:[
+ ['Échauffement · La rivière aux crocodiles',10,'Les enfants traversent le terrain ballon au pied. Deux « crocodiles » sans ballon essaient de toucher les ballons. Ballon touché : on devient crocodile à son tour.'],
+ ['Atelier · Le slalom des champions',15,'Trois parcours de plots côte à côte pour éviter les files d’attente. Slalom, puis tir dans un petit but. On change de pied à chaque passage.'],
+ ['Jeu · Les déménageurs',15,'Deux équipes, tous les ballons au centre. Chacun ramène un ballon en conduite dans sa « maison ». L’équipe qui en a le plus gagne. On rejoue en allant chercher les ballons chez l’adversaire.'],
+ ['Match',15,'3 contre 3 ou 4 contre 4 sur petits terrains, sans gardien. Tout le monde joue en même temps, personne sur le banc.'],
+ ['Retour au calme',5,'On range le matériel ensemble et chacun dit ce qu’il a préféré.']]},
+{id:'L2',pub:'U6-U9',theme:'Tir',title:'Viser juste',dur:60,mat:'Ballons, plots, cerceaux ou chasubles à suspendre, petits buts',steps:[
+ ['Échauffement · 1, 2, 3 soleil',10,'Ballon au pied, on avance vers le coach qui a le dos tourné. Quand il se retourne, on bloque le ballon sous la semelle. Celui qui bouge repart du début.'],
+ ['Atelier · Le chamboule-tout',15,'Des plots debout sur une ligne. Par deux, on tire pour les faire tomber, à 5 puis 8 mètres. On compte les plots de son équipe.'],
+ ['Jeu · Les cibles',15,'Des chasubles accrochées dans les buts. Chaque zone touchée rapporte des points. On tire du droit, puis du gauche.'],
+ ['Match',15,'4 contre 4 avec deux petits buts par équipe : il y a toujours un but libre, donc beaucoup de tirs.'],
+ ['Retour au calme',5,'Concours de tirs au but tous ensemble, le coach dans les cages.']]},
+{id:'L3',pub:'U6-U9',theme:'Passe',title:'Passe à ton copain',dur:60,mat:'1 ballon pour deux, plots, chasubles',steps:[
+ ['Échauffement · Les facteurs',10,'Par deux, un ballon. On se promène dans le terrain en se faisant des passes. Au signal, on change de copain.'],
+ ['Atelier · Les portes',15,'Des portes de plots partout sur le terrain. Par deux, on marque un point à chaque passe réussie à travers une porte. Interdit de faire deux fois la même porte de suite.'],
+ ['Jeu · L’horloge',15,'Une équipe se fait des passes en cercle pendant que l’autre court en relais autour. On compte les passes, puis on inverse.'],
+ ['Match',15,'4 contre 4. Un but marqué après une passe compte double.'],
+ ['Retour au calme',5,'Assis en rond, passes à la main en disant le prénom du copain.']]},
+{id:'L4',pub:'U10-U13',theme:'Passe et déplacement',title:'Passe et suis',dur:75,mat:'Ballons, plots, chasubles de 2 couleurs',steps:[
+ ['Échauffement',15,'Carré de passes à 4 plots : je passe et je suis mon ballon. Deux touches, puis une touche. On tourne dans les deux sens.'],
+ ['Exercice · Le triangle',20,'Par 3 dans un triangle de 10 mètres. Passe, appui, remise, changement de place. Insister sur la prise d’information avant de recevoir et sur le bon pied.'],
+ ['Jeu · Conservation',20,'5 contre 3 dans un carré de 20 mètres. L’équipe en surnombre marque un point après 8 passes. Le trio qui récupère sort le ballon du carré pour marquer.'],
+ ['Match à thème',15,'7 contre 7. Trois touches maximum, deux dans son propre camp.'],
+ ['Retour au calme',5,'Étirements légers et bilan : qu’est-ce qui rend une passe facile à contrôler ?']]},
+{id:'L5',pub:'U10-U13',theme:'Dribble',title:'Un contre un : oser',dur:75,mat:'Ballons, plots, 4 petits buts, chasubles',steps:[
+ ['Échauffement',15,'Chacun son ballon dans un carré. Le coach annonce un geste (crochet, passement de jambe, râteau) et tout le monde l’essaie. Puis jeu du miroir par deux.'],
+ ['Exercice · Le duel',20,'1 contre 1 face à face sur un couloir de 10 mètres, deux petits buts à défendre chacun. 30 secondes d’effort, puis on tourne. On félicite celui qui tente.'],
+ ['Jeu · 2 contre 1',20,'Vague de deux attaquants contre un défenseur avant de frapper. Choisir : je dribble ou je donne ? Le défenseur qui récupère marque dans un petit but.'],
+ ['Match',15,'6 contre 6. Un dribble réussi suivi d’un but compte double.'],
+ ['Retour au calme',5,'Jongles libres, record personnel à battre.']]},
+{id:'L6',pub:'U10-U13',theme:'Finition',title:'Finir devant le but',dur:75,mat:'Ballons en nombre, plots, 2 buts avec gardiens',steps:[
+ ['Échauffement',15,'Conduite et passes par deux, puis frappes douces sur le gardien pour le mettre en confiance.'],
+ ['Exercice · Appui, remise, frappe',20,'Passe à un appui dos au but, remise en retrait, frappe en première intention. Côté droit puis côté gauche. Chercher le cadre avant la force.'],
+ ['Exercice · Centre et reprise',20,'Un joueur déborde et centre, deux joueurs coupent au premier et au second poteau. On change de rôle à chaque passage.'],
+ ['Match',15,'Terrain court avec deux grands buts : les occasions s’enchaînent. Les gardiens tournent.'],
+ ['Retour au calme',5,'Étirements et un mot sur le geste : pied d’appui, regard, équilibre.']]},
+{id:'L7',pub:'U14-U18',theme:'Conservation',title:'Garder le ballon sous pression',dur:90,mat:'Ballons, plots, chasubles de 3 couleurs',steps:[
+ ['Échauffement',15,'Toros à 5 contre 2 en une ou deux touches. Mobilité articulaire entre deux séries.'],
+ ['Exercice · Trois couleurs',25,'Trois équipes de 4 dans un carré de 25 mètres : deux équipes conservent contre la troisième. L’équipe qui perd le ballon passe au pressing. Séquences de 3 minutes.'],
+ ['Jeu · Les zones',25,'7 contre 7 avec deux zones d’en-but. On marque en amenant le ballon arrêté dans la zone après au moins 5 passes.'],
+ ['Match libre',20,'On observe si les joueurs s’écartent pour offrir des solutions au porteur.'],
+ ['Retour au calme',5,'Étirements et hydratation. Une question : où étaient les solutions quand on a perdu le ballon ?']]},
+{id:'L8',pub:'U14-U18',theme:'Relance',title:'Sortir le ballon de derrière',dur:90,mat:'Ballons, plots, chasubles, 1 grand but, 2 petits buts',steps:[
+ ['Échauffement',15,'Passes longues et contrôles orientés par deux, puis à trois avec un joueur au milieu qui se retourne.'],
+ ['Exercice · La première relance',25,'Gardien, 4 défenseurs et 2 milieux contre 3 attaquants qui pressent. Objectif : atteindre un des deux petits buts placés sur la ligne médiane.'],
+ ['Jeu',25,'8 contre 8 sur demi-terrain. Chaque action repart du gardien, à la main ou au pied, interdiction de dégager loin.'],
+ ['Match',20,'Libre. On valorise les relances propres, même quand elles ne donnent rien.'],
+ ['Retour au calme',5,'Étirements. Faire parler les défenseurs : quand jouer court, quand allonger ?']]},
+{id:'L9',pub:'U14-U18',theme:'Pressing',title:'Presser ensemble',dur:90,mat:'Ballons, plots, chasubles, 2 buts',steps:[
+ ['Échauffement',15,'Jeu du béret avec ballon, puis 1 contre 1 courts pour monter en intensité.'],
+ ['Exercice · Le déclencheur',25,'4 contre 4 plus 2 appuis. Au signal du coach (passe en retrait, mauvais contrôle), toute l’équipe sort ensemble. Le joueur le plus proche oriente, les autres ferment.'],
+ ['Jeu',25,'8 contre 8. Un ballon récupéré dans le camp adverse et transformé en but dans les 8 secondes compte triple.'],
+ ['Match',20,'Libre, avec un capitaine par équipe chargé d’annoncer le pressing.'],
+ ['Retour au calme',5,'Retour au calme en trottinant, étirements, bilan collectif.']]},
+{id:'L10',pub:'Adultes',theme:'Reprise',title:'Reprise en douceur',dur:75,mat:'Ballons, plots, chasubles',steps:[
+ ['Échauffement progressif',20,'Footing lent à deux en discutant, mobilité des chevilles, genoux et hanches, puis gammes de passes courtes. On ne sprinte pas à froid.'],
+ ['Toros',15,'Par groupes de 6 ou 7, deux au milieu, deux touches. Bonne humeur obligatoire.'],
+ ['Jeu réduit',25,'5 contre 5 sur petit terrain, séquences de 6 minutes avec 2 minutes de pause pour boire. Chacun dose son effort.'],
+ ['Retour au calme',15,'Marche, étirements doux des mollets, ischios et adducteurs. Un mot sur le prochain match.']]},
+{id:'L11',pub:'Adultes',theme:'Intensité',title:'Jeu réduit et rythme',dur:90,mat:'Ballons, plots, chasubles, 4 petits buts ou 2 grands',steps:[
+ ['Échauffement',20,'Footing, gammes athlétiques (montées de genoux, talons-fesses, pas chassés), puis passes en mouvement à trois.'],
+ ['Exercice · Vagues',20,'3 contre 2 puis retour en 2 contre 1 dans l’autre sens. Aller vite vers le but, finir l’action.'],
+ ['Jeu réduit',30,'Tournoi à 4 équipes en 4 contre 4, matchs de 4 minutes. L’équipe qui gagne reste sur le terrain.'],
+ ['Match',15,'Grand terrain, libre.'],
+ ['Retour au calme',5,'Étirements et hydratation.']]},
+{id:'L12',pub:'Adultes',theme:'Coups de pied arrêtés',title:'Corners et coups francs',dur:75,mat:'Ballons, plots, mannequins ou chasubles posées au sol, 1 grand but',steps:[
+ ['Échauffement',15,'Footing, mobilité, puis passes longues par deux pour préparer les frappes.'],
+ ['Corners offensifs',20,'On répète deux combinaisons simples : un corner rentrant au premier poteau, un corner joué court. Chacun connaît sa course.'],
+ ['Corners défensifs',15,'Placement de chacun, qui prend qui, qui reste devant pour la contre-attaque. On répète jusqu’à ce que ce soit automatique.'],
+ ['Coups francs',15,'Les tireurs s’exercent pendant que le reste du groupe travaille le mur et le second ballon.'],
+ ['Match',10,'Court. Chaque faute et chaque sortie de but se joue comme un coup de pied arrêté travaillé.']]},
+{id:'L13',pub:'Adultes',theme:'Veille de match',title:'La mise en jambes',dur:50,mat:'Ballons, plots, chasubles',steps:[
+ ['Échauffement',15,'Footing léger, mobilité, passes courtes. On reste frais.'],
+ ['Toros et vivacité',10,'Toros en une touche, puis quelques démarrages sur 5 mètres.'],
+ ['Mise en place',15,'L’équipe prévue se place sur demi-terrain. On marche les sorties de balle et le placement défensif, sans opposition ou avec une opposition passive.'],
+ ['Frappes et consignes',10,'Quelques frappes pour le plaisir, puis le coach donne l’heure de rendez-vous et la compo.']]}
+];
+const seaDefPub=(cat)=>isYouth(cat)?(uAge(cat)<=9?'U6-U9':uAge(cat)<=13?'U10-U13':'U14-U18'):'Adultes';
+const seaOf=(x)=>x&&x.lib?Object.assign({},SEA_LIB.find(l=>l.id===x.lib)||{},{rec:x.id}):x;
+function seaBody(x){return `<span class="muted" style="font-size:13px">⏱ ${x.dur?esc(String(x.dur))+' min':'durée libre'}${x.mat?' · 🎒 '+esc(x.mat):''}</span>${x.steps?x.steps.map(st=>`<div style="border-left:4px solid var(--red);padding-left:10px"><b style="font-family:Inter,sans-serif;font-size:14px">${esc(st[0])} · ${st[1]} min</b><p style="margin:2px 0 0;font-family:'Source Serif 4',serif;font-size:15px;line-height:1.4">${esc(st[2])}</p></div>`).join(''):`<div class="gzbody">${String(x.text||'').split(/\n\n+/).map(p=>`<p>${esc(p).replace(/\n/g,'<br>')}</p>`).join('')}</div>`}`;}
+function seaCard(x,own){return `<details class="fold" style="border:2px solid var(--ink);border-radius:16px;background:#fff;padding:0 12px"><summary style="list-style:none;cursor:pointer;padding:12px 0;display:flex;flex-direction:column;gap:2px"><span class="kicker" style="font-size:11px">${esc(SEA_LAB[x.pub]||x.pub||'')}${x.theme?' · '+esc(x.theme):''}${own?' · ma séance':''}</span><span class="row" style="justify-content:space-between"><b style="font-family:Oswald,sans-serif;font-size:20px;text-transform:uppercase;line-height:1.05">${esc(x.title)}</b></span><span class="meta">${x.dur?x.dur+' min':''}${x.sentAt?' · envoyée le '+esc(new Date(x.sentAt).toLocaleDateString('fr-FR',{day:'numeric',month:'long'})):''}</span></summary><div style="display:flex;flex-direction:column;gap:10px;padding-bottom:12px">${seaBody(x)}<button class="btn red" data-a="seaSend" data-id="${x.id}">📤 Envoyer cette séance à l’équipe</button><div class="row" style="gap:8px"><button class="btn small ghost" style="flex:1" data-a="seaEdit" data-id="${x.id}">✏️ ${own?'Modifier':'Adapter à ma sauce'}</button>${own?`<button class="btn small ghost" style="flex:1" data-a="seaDel" data-id="${x.id}">Supprimer</button>`:''}</div></div></details>`;}
+function vSeances(c){const t=me();const pub=SEA_PUBS.includes(S.seaPub)?S.seaPub:seaDefPub(t.cat);const mine=(S.seances||[]).filter(x=>x.club===c.id&&!x.lib).sort((a,b)=>b.at-a.at);const lib=SEA_LIB.filter(x=>x.pub===pub);
+  return `<span class="muted">Des idées de séances prêtes à l’emploi, en français. Ouvre-en une, adapte-la si tu veux, et envoie-la à l’équipe : les joueurs la voient sur leur accueil.</span><button class="btn red" data-a="seaNew">+ Créer ma propre séance</button>
+  ${mine.length?`<span class="kicker">Mes séances (${mine.length})</span>${mine.map(x=>seaCard(x,true)).join('')}`:''}
+  <span class="kicker">Idées de séances</span><div class="chips wrap">${SEA_PUBS.map(k=>`<button class="chip ${k===pub?'on':''}" aria-pressed="${k===pub}" data-a="seaPub" data-v="${k}">${esc(SEA_LAB[k].split(' (')[0])}</button>`).join('')}</div>${lib.map(x=>seaCard(x,false)).join('')}
+  <span class="muted" style="font-size:12px">Ces séances sont des idées de base : adapte les durées et les distances à l’âge, au niveau et au nombre de joueurs.</span>`;}
+function vSeaForm(m){const d=m.d||{};return `<h2>${m.edit?'Modifier ma séance':'Ma séance'}</h2><form data-f="seance" style="display:flex;flex-direction:column;gap:10px"><label class="field">Titre<input name="title" required value="${esc(d.title||'')}" placeholder="ex. Jeu de tête et bonne humeur"></label><div class="grid2"><label class="field">Pour qui ?<select name="pub">${SEA_PUBS.map(k=>`<option value="${k}" ${d.pub===k?'selected':''}>${esc(SEA_LAB[k].split(' (')[0])}</option>`).join('')}</select></label><label class="field">Durée (min)<input name="dur" type="number" inputmode="numeric" min="10" max="180" value="${esc(String(d.dur||60))}"></label></div><label class="field">Matériel<input name="mat" value="${esc(d.mat||'')}" placeholder="Ballons, plots, chasubles…"></label><label class="field">Déroulé<textarea name="text" rows="12" required style="font-family:'Source Serif 4',serif;font-size:16px;line-height:1.45" placeholder="Échauffement (15 min) : …&#10;&#10;Exercice (20 min) : …&#10;&#10;Match (20 min) : …">${esc(d.text||'')}</textarea></label><button class="btn red" type="submit">Enregistrer</button></form><button class="btn ghost" data-a="close">Annuler</button>`;}
+function seaForTeam(tid){return (S.seances||[]).filter(x=>x.sentTo===tid&&x.sentAt&&Date.now()-x.sentAt<10*864e5).sort((a,b)=>b.sentAt-a.sentAt)[0];}
+function seaPlayerCard(tid){const r=seaForTeam(tid);if(!r)return '';const x=seaOf(r);if(!x||!x.title)return '';return `<button class="item row" data-a="seaOpen" data-id="${r.id}" style="flex-direction:row;text-align:left;cursor:pointer;border:2px solid var(--ink);background:#fff"><span style="font-size:24px" aria-hidden="true">📋</span><span class="grow"><b style="font-family:Inter,sans-serif;font-size:14px">La séance préparée par le coach</b><br><span class="muted" style="font-size:13px">${esc(x.title)}${x.dur?' · '+x.dur+' min':''}</span></span><span aria-hidden="true">→</span></button>`;}
 // ---------- bilan de l'équipe ----------
 function teamBilan(tid){const ms=S.matches.filter(m=>m.status==='played'&&m.score&&(m.from===tid||m.to===tid)).sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||'')));if(!ms.length)return '';
   let v=0,n=0,d=0,bp=0,bc=0;const form=ms.map(m=>{const a=Number(m.from===tid?m.score[0]:m.score[1]),b=Number(m.from===tid?m.score[1]:m.score[0]);bp+=a;bc+=b;if(a>b){v++;return 'V';}if(a<b){d++;return 'D';}n++;return 'N';});
@@ -1490,7 +1585,7 @@ function clubHub(c){const t=me();const pl=S.players.filter(p=>p.team===t.id);con
   const bd={lic:pl.filter(p=>!p.lic).length,actu:(S.articles||[]).filter(a=>a.pending&&(a.aud||[]).includes(S.me)).length,agenda:helpsFor(S.me).reduce((n,h)=>n+h.slots.reduce((k,x)=>k+Math.max(0,x.need-x.who.length),0),0),compo:m&&(!cp||!cp.sent)?1:0};
   const tile=(k,ic,lab,sub)=>`<button data-a="clubTo" data-v="${k}" style="position:relative;background:#fff;border:2px solid var(--ink);border-radius:16px;padding:12px;text-align:left;min-height:92px;display:flex;flex-direction:column;gap:4px;font-family:Inter,sans-serif;cursor:pointer"><span style="font-size:22px" aria-hidden="true">${ic}</span><b style="font-size:14px">${lab}</b><span style="font-size:11px;color:var(--mute)">${sub}</span>${bd[k]?`<span style="position:absolute;top:8px;right:8px;background:var(--red);color:#fff;border-radius:12px;min-width:24px;height:24px;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 6px">${k==='compo'?'!':bd[k]}</span>`:''}</button>`;
   const grp=(title,tiles)=>`<span class="kicker">${title}</span><div class="grid2">${tiles.join('')}</div>`;
-  return grp('Équipe',[tile('squad','👥','Effectif',pl.length+' joueurs · tests'),tile('compo','📋','Compo',m?'Prochain match '+esc(fdShort(m.date)):'Compo type'),tile('agenda','📅','Agenda','Entraînements, coups de main')])
+  return grp('Équipe',[tile('squad','👥','Effectif',pl.length+' joueurs · tests'),tile('compo','📋','Compo',m?'Prochain match '+esc(fdShort(m.date)):'Compo type'),tile('agenda','📅','Agenda','Entraînements, coups de main'),tile('seances','🏃','Séances','Idées d’entraînement')])
    +grp('Vie du club',[tile('actu','📰','La Gazette','Articles, comptes rendus'),tile('photos','📸','Photos','Le fil du club'),tile('chat','💬','Chat','Toute l’équipe')])
    +grp('Gestion',[tile('lic','🪪','Licences',pl.filter(p=>p.lic).length+'/'+pl.length+' payées'),tile('caisse','💶','Caisse','Collectes'),tile('treso','🏦','Trésorerie',(()=>{const tr=(S.treso||[]).find(x=>x.club===c.id);return tr?'Solde : '+eur(tresoSolde(c.id)):'Comptes du club';})()),tile('tenues','👕','Tenues','Tailles, dotations'),tile('spons','🤝','Sponsors','Partenaires')]);}
 
@@ -1757,6 +1852,8 @@ function vModal(){
     <label class="field">Participation<input name="price" placeholder="Ex. participation club 30 €, le reste à votre charge"></label>
     <label class="field">Détails<textarea name="desc"></textarea></label>${audPicker(S.role==='player'?[]:[])}
     <button class="btn red" type="submit">Créer l’événement</button><button class="btn ghost" type="button" data-a="close">Annuler</button></form>`;}
+  else if(m.type==='seaForm'){h=vSeaForm(m);}
+  else if(m.type==='seaRead'){const r=(S.seances||[]).find(x=>x.id===m.id);const x=seaOf(r);h=x&&x.title?`<span class="kicker">${esc(SEA_LAB[x.pub]||'')}${x.theme?' · '+esc(x.theme):''}</span><h2 style="margin:0">${esc(x.title)}</h2>${seaBody(x)}<button class="btn ghost" data-a="close">Fermer</button>`:'';}
   else if(m.type==='dm'){const pp=S.players.find(x=>x.id===m.id);h=pp?`<h2>💬 ${esc(shortName(pp.name))}</h2>`+vDm(m.id)+`<button class="btn ghost" data-a="close">Fermer</button>`:'';}
   else if(m.type==='chatClean'){h=`<h2>Nettoyer le fil ?</h2><span class="muted">Tous les messages automatiques (scores, buts, convocations, collectes…) seront effacés pour toute l’équipe, ainsi que les notifications de l’accueil. Les messages écrits et les vocaux des joueurs restent.</span><button class="btn red" data-a="chatClean" data-id="${m.id}">Oui, on repart de zéro</button><button class="btn ghost" data-a="close">Annuler</button>`;}
   else if(m.type==='reset'){h=`<h2>Réinitialiser la démo ?</h2><span class="muted">Les clubs créés, messages et réglages seront effacés et les 8 clubs d’exemple reviennent.</span><button class="btn red" data-a="reset">Oui, tout remettre à zéro</button><button class="btn ghost" data-a="close">Annuler</button>`;}
@@ -1806,6 +1903,12 @@ const A={
   dmGo(){S.pview='chat';S.chatTab='dm';const x=privDoc(S.mePlayer,'j');if(x)x.seenJ=Date.now();},
   dmGoCoach(){S.view='club';S.sub.club='chat';},
   dmOpen(d){S.modal={type:'dm',id:d.id};const x=privDoc(d.id,'j');if(x&&isCoach()&&dmUnread(x,'s'))x.seenS=Date.now();},
+  seaPub(d){S.seaPub=d.v;},
+  seaNew(){S.modal={type:'seaForm',d:{pub:seaDefPub(me().cat),dur:60}};},
+  seaEdit(d){const own=(S.seances||[]).find(x=>x.id===d.id&&!x.lib);if(own){S.modal={type:'seaForm',edit:own.id,d:{title:own.title,pub:own.pub,dur:own.dur,mat:own.mat,text:own.text}};return;}const l=SEA_LIB.find(x=>x.id===d.id);if(!l)return;S.modal={type:'seaForm',d:{title:l.title,pub:l.pub,dur:l.dur,mat:l.mat,text:l.steps.map(st=>st[0]+' ('+st[1]+' min) : '+st[2]).join('\n\n')}};},
+  seaDel(d){S.seances=(S.seances||[]).filter(x=>x.id!==d.id);toast('Séance supprimée');},
+  seaSend(d){if(!isCoach())return;S.seances=S.seances||[];let r=S.seances.find(x=>x.id===d.id&&!x.lib);let title;if(r){r.sentAt=Date.now();r.sentTo=S.me;title=r.title;}else{const l=SEA_LIB.find(x=>x.id===d.id);if(!l)return;S.seances=S.seances.filter(x=>!(x.lib&&x.sentTo===S.me));S.seances.push({id:id('se'),club:me().club,team:S.me,lib:l.id,sentAt:Date.now(),sentTo:S.me,by:whoKey()});title=l.title;}chatSys(S.me,'📋 Le coach a préparé la prochaine séance : « '+title+' ». À voir sur ton accueil.');toast('Séance envoyée à l’équipe');},
+  seaOpen(d){S.modal={type:'seaRead',id:d.id};},
   chatCleanAsk(d){S.modal={type:'chatClean',id:d.id};},
   chatClean(d){const t=team(d.id);if(!t||!staffOf(t.club))return;S.chats=S.chats||{};S.chats[d.id]=(S.chats[d.id]||[]).filter(m=>m.who!=='sys'&&!m.voice);S.notifs=(S.notifs||[]).filter(n=>n.club!==t.club);S.modal=null;toast('Fil nettoyé');},
   onlineToggle(){S.openOnline=!S.openOnline;},
@@ -2104,6 +2207,7 @@ const F={
   qual(fd){const pp=S.players.find(x=>x.id===S.modal.id);pp.qual={};QUALS.forEach(k=>pp.qual[k]=Number(fd.get('q_'+k))||5);pp.qualSrc='manual';S.modal={type:'card',id:pp.id};S.openPerf=pp.id;toast('Profil enregistré');},
   dm(fd){const t=(fd.get('msg')||'').trim();const pid=fd.get('pid');const d=privDoc(pid,'j');const pl=S.players.find(x=>x.id===pid);if(!t||!d||!pl)return;const j=dmMine(pid);if(!j&&!isCoach())return;
     d.msgs=d.msgs||[];d.msgs.push({who:whoKey(),j:j?1:undefined,text:t,at:Date.now()});if(j){d.seenJ=Date.now();pushSend('staff',d.club,'💬 Message privé de '+shortName(pl.name),t);}else{d.seenS=Date.now();pushSend('player',pid,'💬 Message privé du coach',t,{club:d.club});}},
+  seance(fd){const m=S.modal;const v={title:(fd.get('title')||'').trim(),pub:fd.get('pub'),dur:Number(fd.get('dur'))||null,mat:(fd.get('mat')||'').trim(),text:(fd.get('text')||'').trim()};if(!v.title||!v.text)return;S.seances=S.seances||[];if(m.edit){const x=S.seances.find(k=>k.id===m.edit);if(x)Object.assign(x,v);}else S.seances.push(Object.assign({id:id('se'),club:me().club,team:S.me,by:whoKey(),at:Date.now()},v));S.seaPub=v.pub;S.modal=null;toast('Séance enregistrée');},
   chat(fd){const t=(fd.get('msg')||'').trim();if(!t)return;S.chats=S.chats||{};(S.chats[S.me]=S.chats[S.me]||[]).push({who:whoKey(),text:t,at:Date.now()});},
   train(fd){S.trainings=S.trainings||[];const bf=fd.get('bfield');const once=fd.get('rep')==='once';if(once&&!fd.get('date')){toast('Choisis la date de l’entraînement');return;}S.trainings.push({id:id('tr'),team:fd.get('team'),dow:once?parse(fd.get('date')).getDay():Number(fd.get('dow')),date:once?fd.get('date'):undefined,time:fd.get('time'),field:fd.get('field'),planB:bf?{field:bf,time:fd.get('btime')||fd.get('time')}:null});toast('Entraînement ajouté');},
   field(fd){const c=myClub();c.fields=c.fields||[];c.fields.push({id:id('f'),name:fd.get('name').trim(),address:fd.get('address').trim(),surface:fd.get('surface')});toast('Terrain ajouté');},
