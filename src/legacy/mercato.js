@@ -442,10 +442,12 @@ async function cloudLoadAll(){const all=[];for(let from=0;;from+=1000){const {da
 // Au retour sur l'appli (ou du réseau) : on envoie ce qui attend, puis on recharge la base pour ne jamais écrire par-dessus des données plus récentes.
 const UIKEYS=['modal','seaBuild','seaKey','seaPub','chatTab','mFilter','openOnline','openPerf','openLic','openItem','openCol','openConv','lsub','annPick','refOpen','calOff'];
 async function cloudRefresh(){if(!LIVE||!CLOUD.ready||!CLOUD.session||CLOUD.refreshing||AUTH)return;CLOUD.refreshing=true;
-  try{dirtyMark();await cloudSync();const ui={};UIKEYS.forEach(k=>{if(S[k]!==undefined)ui[k]=S[k];});await cloudLoadAll();await cloudMembres();Object.assign(S,ui);resolveIdentity();try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}CLOUD.fresh=Date.now();softRender();cloudSchedule();}
+  try{dirtyMark();await cloudSync();const ui={};UIKEYS.forEach(k=>{if(S[k]!==undefined)ui[k]=S[k];});await cloudLoadAll();await cloudMembres();Object.assign(S,ui);resolveIdentity();try{await cloudPending();}catch(e){}try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}CLOUD.fresh=Date.now();softRender();cloudSchedule();}
   catch(e){console.warn('Rechargement impossible',e);}finally{CLOUD.refreshing=false;}}
 let HIDDEN_AT=0;
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'){HIDDEN_AT=Date.now();return;}if(HIDDEN_AT&&Date.now()-HIDDEN_AT>15000)cloudRefresh();HIDDEN_AT=0;});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'){HIDDEN_AT=Date.now();return;}if(HIDDEN_AT&&Date.now()-HIDDEN_AT>15000)cloudRefresh();else if(LIVE&&CLOUD.ready&&CLOUD.session&&!AUTH)cloudPending().then(()=>softRender()).catch(()=>{});HIDDEN_AT=0;});
+addEventListener('focus',()=>{if(LIVE&&CLOUD.ready&&CLOUD.session&&!AUTH&&!CLOUD.refreshing)cloudPending().then(()=>softRender()).catch(()=>{});});
+if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('message',(e)=>{if(e.data&&e.data.type==='notif-clic')cloudRefresh();});
 addEventListener('online',()=>{cloudRefresh();});
 async function cloudMembres(){const {data}=await sb.from('memberships').select('*').eq('user_id',CLOUD.uid);CLOUD.mem=data||[];}
 async function cloudPending(){if(!S.me||!team(S.me)||!staffOf(team(S.me).club))return;const {data:all}=await sb.from('memberships').select('*').eq('club_id',me().club);CLOUD.clubMem=all||[];CLOUD.pending=(all||[]).filter(m=>m.statut==='en_attente');

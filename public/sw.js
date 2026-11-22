@@ -30,7 +30,7 @@ self.addEventListener('notificationclick', (e) => {
   e.notification.close()
   const url = (e.notification.data && e.notification.data.url) || '/'
   e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((cs) => {
-    for (const c of cs) { if ('focus' in c) { c.navigate && c.navigate(url).catch(() => {}); return c.focus() } }
+    for (const c of cs) { if ('focus' in c) { try { c.postMessage({ type: 'notif-clic' }) } catch (err) {} return c.focus() } }
     return self.clients.openWindow(url)
   }))
 })
