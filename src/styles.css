@@ -242,3 +242,7 @@ details.fold.sub{background:var(--paper);border:none;border-radius:12px;padding:
 .paperpick .pp{opacity:.55;transition:opacity .15s}
 .paperpick input:checked+.pp{opacity:1;outline:3px solid var(--ink);outline-offset:2px}
 .paperpick input:checked+.pp::after{content:'✓ Choisi';font-family:Inter,sans-serif;font-size:12px;font-weight:800}
+
+/* barre du bas : fixée à l'écran (ne flotte plus après le clavier ou un retour sur l'appli sur iPhone) */
+nav.tabs{position:fixed!important;left:0;right:0;bottom:0;width:100%;max-width:480px;margin:0 auto;box-sizing:border-box}
+main{padding-bottom:calc(104px + env(safe-area-inset-bottom))}

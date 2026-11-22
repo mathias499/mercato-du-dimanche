@@ -444,6 +444,11 @@ const UIKEYS=['modal','seaBuild','seaKey','seaPub','chatTab','mFilter','openOnli
 async function cloudRefresh(){if(!LIVE||!CLOUD.ready||!CLOUD.session||CLOUD.refreshing||AUTH)return;CLOUD.refreshing=true;
   try{dirtyMark();await cloudSync();const ui={};UIKEYS.forEach(k=>{if(S[k]!==undefined)ui[k]=S[k];});await cloudLoadAll();await cloudMembres();Object.assign(S,ui);resolveIdentity();try{await cloudPending();}catch(e){}try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}CLOUD.fresh=Date.now();softRender();cloudSchedule();}
   catch(e){console.warn('Rechargement impossible',e);}finally{CLOUD.refreshing=false;}}
+// iPhone : après la fermeture du clavier ou un retour sur l'appli, l'écran garde parfois une mauvaise hauteur. Un micro-défilement le remet d'aplomb.
+function viewNudge(){try{if(document.body.classList.contains('locked'))return;const a=document.activeElement;if(a&&/INPUT|TEXTAREA/.test(a.tagName))return;const y=window.scrollY||0;window.scrollTo(0,y+1);window.scrollTo(0,y);}catch(e){}}
+document.addEventListener('focusout',(e)=>{if(e.target&&/INPUT|TEXTAREA|SELECT/.test(e.target.tagName||''))setTimeout(viewNudge,150);});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(viewNudge,200);});
+if(window.visualViewport)window.visualViewport.addEventListener('resize',()=>setTimeout(viewNudge,200));
 let HIDDEN_AT=0;
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'){HIDDEN_AT=Date.now();return;}if(HIDDEN_AT&&Date.now()-HIDDEN_AT>15000)cloudRefresh();else if(LIVE&&CLOUD.ready&&CLOUD.session&&!AUTH)cloudPending().then(()=>softRender()).catch(()=>{});HIDDEN_AT=0;});
 addEventListener('focus',()=>{if(LIVE&&CLOUD.ready&&CLOUD.session&&!AUTH&&!CLOUD.refreshing)cloudPending().then(()=>softRender()).catch(()=>{});});
