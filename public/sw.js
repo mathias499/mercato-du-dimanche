@@ -1,11 +1,22 @@
 // Service worker : l'appli s'ouvre même sans réseau (dernière version en cache) + notifications
 const CACHE = 'mercato-v2'
+// Photos du club : gardées sur le téléphone après le premier affichage (elles ne changent jamais d'adresse)
+const PHOTOS = 'mercato-photos-v1'
 self.addEventListener('install', (e) => { self.skipWaiting() })
 self.addEventListener('activate', (e) => {
-  e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()))
+  e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE && k !== PHOTOS).map((k) => caches.delete(k)))).then(() => self.clients.claim()))
 })
 self.addEventListener('fetch', (e) => {
   const req = e.request
+  if (req.method === 'GET' && req.url.includes('/storage/v1/object/public/photos/')) {
+    e.respondWith(caches.open(PHOTOS).then((c) => c.match(req.url).then((deja) => deja || fetch(req).then((res) => {
+      if (res && (res.ok || res.type === 'opaque')) {
+        c.put(req.url, res.clone()).then(() => c.keys()).then((ks) => { if (ks.length > 150) return Promise.all(ks.slice(0, ks.length - 150).map((k) => c.delete(k))) }).catch(() => {})
+      }
+      return res
+    }))))
+    return
+  }
   if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return
   if (new URL(req.url).pathname.startsWith('/api/')) return
   // Réseau d'abord (pour recevoir les mises à jour), cache si hors ligne

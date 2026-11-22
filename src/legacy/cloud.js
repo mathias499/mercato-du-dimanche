@@ -24,7 +24,7 @@ export async function envoyerPhotos(obj, uid) {
           const blob = await (await fetch(v)).blob()
           const ext = blob.type === 'image/png' ? 'png' : blob.type === 'image/webp' ? 'webp' : 'jpg'
           const chemin = `${uid}/${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.${ext}`
-          const { error } = await sb.storage.from('photos').upload(chemin, blob, { contentType: blob.type, upsert: false })
+          const { error } = await sb.storage.from('photos').upload(chemin, blob, { contentType: blob.type, upsert: false, cacheControl: '31536000' })
           if (!error) { o[k] = sb.storage.from('photos').getPublicUrl(chemin).data.publicUrl; change = true }
         } catch (e) { /* on réessaiera à la prochaine synchro */ }
       } else if (v && typeof v === 'object') await visiter(v)
