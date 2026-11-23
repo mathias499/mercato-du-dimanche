@@ -2547,7 +2547,9 @@ const C={
   seaBVar(el){if(S.seaBuild){const it=S.seaBuild.items[Number(el.dataset.i)];if(it)it.v=el.value;}return 'keep';},
   privField(el){const pid=el.dataset.id;if(!(isCoach()||myPids().includes(pid)||S.mePlayer===pid))return;privSet(pid,el.dataset.k,el.value);toast('Enregistré ✓');},
   pfield(el){const p=S.players.find(x=>x.id===el.dataset.id);const f=el.dataset.f;if(LIVE&&S.role!=='coach'&&['lic','pot','mode'].includes(f))return;p[f]=['lic','pot'].includes(f)?el.value==='1':el.value;if(S.role!=='coach')toast('Enregistré ✓');},
-  size(el){const p=S.players.find(x=>x.id===el.dataset.id);p.sizes=p.sizes||{};p.sizes[el.dataset.item]=el.value;toast('Enregistré ✓');},
+  size(el){const p=S.players.find(x=>x.id===el.dataset.id);p.sizes=p.sizes||{};const avant=p.sizes[el.dataset.item]||'';p.sizes[el.dataset.item]=el.value;const it=S.items.find(i=>i.id===el.dataset.item);let suivi=false;
+    if(it&&!it.solo&&/^maillot$/i.test(it.name.trim())&&el.value){const sh=S.items.find(i=>i.club===it.club&&!i.solo&&/^short$/i.test(i.name.trim()));if(sh&&(KINDS[sh.kind]||[]).includes(el.value)&&(!p.sizes[sh.id]||p.sizes[sh.id]===avant)&&p.sizes[sh.id]!==el.value){p.sizes[sh.id]=el.value;suivi=true;}}
+    toast(suivi?'Enregistré ✓ · short mis à la même taille':'Enregistré ✓');},
   licPrice(el){S.licPrice=S.licPrice||{};S.licPrice[myClub().id]=Number(el.value)||0;},
   liveHalf(el){const m=S.matches.find(x=>x.id===S.modal.id);const [n,h]=el.value.split('x').map(Number);m.lv.n=n;m.lv.half=h;},
   colPay(el){if(LIVE&&S.role!=='coach')return;const k=S.collectes.find(x=>x.id===el.dataset.k);k.paid=k.paid||{};if(el.value)k.paid[el.dataset.id]={mode:el.value,at:Date.now()};else delete k.paid[el.dataset.id];},
