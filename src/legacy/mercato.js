@@ -915,6 +915,7 @@ function vClub(){
     const its=S.items.filter(i=>i.club===c.id);const it=its.find(i=>i.id===S.openItem)||its[0];
     const all=S.players.filter(p=>tids.includes(p.team));
     h+=`<span class="muted">Tous les licenciés du club sont repris automatiquement. Ajoute un article (jogging, sweat…), puis note la taille de chaque joueur.</span>
+    <button class="btn red" data-a="tenuesPdf">📄 PDF de la commande (joueurs, numéros, tailles)</button>
     <div class="chips wrap">${its.map(i=>`<button class="chip ${it&&i.id===it.id?'on':''}" aria-pressed="${it&&i.id===it.id}" data-a="item" data-id="${i.id}">${esc(i.name)}</button>`).join('')}<button class="chip" style="border-style:dashed" data-a="newItem">+ Ajouter un article</button></div>`;
     if(it){const sizes=KINDS[it.kind];const count={};let none=0,given=0;all.forEach(p=>{const z=(p.sizes||{})[it.id];if(z)count[z]=(count[z]||0)+1;else none++;if((p.given||{})[it.id])given++;});
       h+=`<div class="panel"><span class="label">${esc(it.name)} · ${esc(it.kind)}</span>
@@ -1705,6 +1706,27 @@ function todoCoach(){const t=me();const items=[];const pin=myMatches().filter(m=
   const hv=helpsFor(S.me).reduce((n,h)=>n+h.slots.reduce((k,x)=>k+Math.max(0,x.need-x.who.length),0),0);if(hv)it(hv,`poste${hv>1?'s':''} de bénévole${hv>1?'s':''} encore libre${hv>1?'s':''}`,'go','club','agenda');
   const lic=pl.filter(p=>!p.lic).length;if(lic)it(lic,`licence${lic>1?'s':''} pas encore payée${lic>1?'s':''}`,'go','club','lic');
   return `<div style="background:var(--paper);border-radius:18px;padding:12px;display:flex;flex-direction:column;gap:8px"><div class="row" style="justify-content:space-between"><span class="hl" style="font-size:22px">À faire</span><span class="meta">${items.length?items.length+' chose'+(items.length>1?'s':''):''}</span></div>${items.join('')||'<span class="muted" style="padding:8px 4px">Rien à faire pour l’instant. Profite !</span>'}</div>`;}
+// ---------- PDF de la commande de tenues (joueurs, numéros, tailles) ----------
+let PDFFILE=null;
+const pdfTxt=(x)=>String(x==null?'':x).replace(/[’‘]/g,"'").replace(/[“”«»]/g,'"').replace(/[–—]/g,'-').replace(/œ/g,'oe').replace(/Œ/g,'OE').replace(/[^\x20-\x7E\xA0-\xFF]/g,'').trim();
+async function tenuesPdf(){const c=myClub();const tids=teamsOfClub(c.id).filter(t=>!team(t).ext);const its=S.items.filter(i=>i.club===c.id);const multi=tids.length>1;
+  const all=S.players.filter(p=>tids.includes(p.team)).sort((a,b)=>(multi?tids.indexOf(a.team)-tids.indexOf(b.team):0)||((a.num||999)-(b.num||999))||a.name.localeCompare(b.name));
+  const [{jsPDF},at]=await Promise.all([import('jspdf'),import('jspdf-autotable')]);const autoTable=at.default||at.autoTable;
+  const doc=new jsPDF({orientation:its.length>4?'landscape':'portrait',unit:'mm',format:'a4'});const W=doc.internal.pageSize.getWidth();const date=new Date().toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'});
+  doc.setFillColor(196,5,0);doc.rect(0,0,W,24,'F');doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(18);doc.text(pdfTxt('Commande de tenues - '+c.name),12,11);
+  doc.setFont('helvetica','normal');doc.setFontSize(10);doc.text(pdfTxt((c.town&&c.town!=='—'?c.town+' - ':'')+all.length+' joueur'+(all.length>1?'s':'')+' - '+date),12,18);doc.setTextColor(17,17,17);
+  const kit=(c.colors||[]).filter(Boolean).join(' / ');let y=32;if(kit){doc.setFontSize(10);doc.text(pdfTxt('Couleurs du maillot : '+kit),12,y);y+=6;}
+  doc.setFont('helvetica','bold');doc.setFontSize(12);doc.text('Joueur par joueur',12,y+2);
+  autoTable(doc,{startY:y+5,margin:{left:12,right:12},head:[[...(multi?['Equipe']:[]),'N°','Nom',...its.map(i=>pdfTxt(i.name))]],
+    body:all.map(p=>[...(multi?[pdfTxt(tlabel(p.team)||team(p.team).cat)]:[]),p.num?String(p.num):'-',pdfTxt(p.name),...its.map(i=>pdfTxt((p.sizes||{})[i.id]||'-'))]),
+    styles:{font:'helvetica',fontSize:10,cellPadding:2.2,lineColor:[200,200,200],lineWidth:0.1},headStyles:{fillColor:[17,17,17],textColor:255,fontStyle:'bold'},alternateRowStyles:{fillColor:[245,243,238]},
+    columnStyles:{[multi?1:0]:{halign:'center',fontStyle:'bold',cellWidth:14}},didParseCell:(d)=>{if(d.section==='body'&&d.cell.raw==='-'&&d.column.index>(multi?2:1)){d.cell.styles.textColor=[196,5,0];}}});
+  let y2=(doc.lastAutoTable?doc.lastAutoTable.finalY:y+20)+10;if(y2>doc.internal.pageSize.getHeight()-50){doc.addPage();y2=18;}
+  doc.setFont('helvetica','bold');doc.setFontSize(12);doc.text(pdfTxt('Quantités à commander'),12,y2);
+  const rows=[];its.forEach(i=>{const count={};let none=0;all.forEach(p=>{const z=(p.sizes||{})[i.id];if(z)count[z]=(count[z]||0)+1;else none++;});const det=(KINDS[i.kind]||Object.keys(count)).filter(z=>count[z]).map(z=>z+' x '+count[z]).join('   ');rows.push([pdfTxt(i.name),pdfTxt(det||'aucune taille saisie'),String(all.length-none),none?String(none):'0']);});
+  autoTable(doc,{startY:y2+3,margin:{left:12,right:12},head:[['Article',pdfTxt('Détail par taille'),'Total',pdfTxt('Taille manquante')]],body:rows,styles:{font:'helvetica',fontSize:10,cellPadding:2.2,lineColor:[200,200,200],lineWidth:0.1},headStyles:{fillColor:[17,17,17],textColor:255,fontStyle:'bold'},columnStyles:{2:{halign:'center',fontStyle:'bold',cellWidth:18},3:{halign:'center',cellWidth:32}}});
+  const n=doc.getNumberOfPages();for(let k=1;k<=n;k++){doc.setPage(k);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(120,120,120);doc.text(pdfTxt('Le Mercato du dimanche - '+c.name+' - '+date+' - page '+k+'/'+n),12,doc.internal.pageSize.getHeight()-8);}
+  const nom='tenues-'+norm(c.name).replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')+'.pdf';const blob=doc.output('blob');return {file:new File([blob],nom,{type:'application/pdf'}),url:URL.createObjectURL(blob),nom,joueurs:all.length,articles:its.length,manque:rows.reduce((a,r)=>a+Number(r[3]),0)};}
 function recapPanel(c,t){const pl=S.players.filter(p=>p.team===t.id);const N=pl.length;if(!N)return '';const nm=(l)=>l.map(p=>esc(shortName(p.name))).join(', ')||'personne';
   const ins=pl.filter(onApp),pas=pl.filter(p=>!onApp(p));const lic=pl.filter(p=>p.lic),nolic=pl.filter(p=>!p.lic);const price=(S.licPrice||{})[c.id]||0;
   const cols=(S.collectes||[]).filter(k=>k.club===c.id&&(k.teams||[]).includes(t.id));
@@ -1986,6 +2008,7 @@ function vModal(){
     <label class="field">Participation<input name="price" placeholder="Ex. participation club 30 €, le reste à votre charge"></label>
     <label class="field">Détails<textarea name="desc"></textarea></label>${audPicker(S.role==='player'?[]:[])}
     <button class="btn red" type="submit">Créer l’événement</button><button class="btn ghost" type="button" data-a="close">Annuler</button></form>`;}
+  else if(m.type==='pdf'){h=m.err?`<h2>PDF de la commande</h2><div class="empty">Impossible de créer le PDF. Vérifie ta connexion et réessaie.</div><button class="btn ghost" data-a="close">Fermer</button>`:!PDFFILE?`<h2>PDF de la commande</h2><div class="empty">Préparation du PDF…</div>`:`<h2>Ton PDF est prêt</h2><span class="muted">${PDFFILE.joueurs} joueur${PDFFILE.joueurs>1?'s':''} · ${PDFFILE.articles} article${PDFFILE.articles>1?'s':''}${PDFFILE.manque?' · <b style="color:var(--red)">'+PDFFILE.manque+' taille'+(PDFFILE.manque>1?'s':'')+' manquante'+(PDFFILE.manque>1?'s':'')+' (en rouge dans le PDF)</b>':' · toutes les tailles sont saisies ✓'}</span><button class="btn red" data-a="pdfShare">📤 Envoyer ou enregistrer le PDF</button><a class="btn ghost" style="text-decoration:none;text-align:center" href="${PDFFILE.url}" download="${esc(PDFFILE.nom)}" target="_blank" rel="noopener">Ouvrir le PDF</a><span class="muted" style="font-size:12px">« Envoyer » ouvre le partage du téléphone : WhatsApp, mail, ou « Enregistrer dans Fichiers ».</span><button class="btn ghost" data-a="close">Fermer</button>`;}
   else if(m.type==='admin'){h=vAdmin(m);}
   else if(m.type==='support'){h=vSupport();}
   else if(m.type==='seaForm'){h=vSeaForm(m);}
@@ -2063,6 +2086,8 @@ const A={
   chatClean(d){const t=team(d.id);if(!t||!staffOf(t.club))return;S.chats=S.chats||{};S.chats[d.id]=(S.chats[d.id]||[]).filter(m=>m.who!=='sys'&&!m.voice);S.notifs=(S.notifs||[]).filter(n=>n.club!==t.club);S.modal=null;toast('Fil nettoyé');},
   adminStats(){S.modal={type:'admin'};apiGet('/api/stats').then(j=>{if(S.modal&&S.modal.type==='admin'){S.modal=j&&j.ok?{type:'admin',data:j}:{type:'admin',err:true};render();}}).catch(()=>{if(S.modal&&S.modal.type==='admin'){S.modal={type:'admin',err:true};render();}});},
   supportOpen(){S.modal={type:'support'};},
+  tenuesPdf(){PDFFILE=null;S.modal={type:'pdf'};tenuesPdf().then(r=>{PDFFILE=r;if(S.modal&&S.modal.type==='pdf')render();}).catch(e=>{console.warn(e);if(S.modal&&S.modal.type==='pdf'){S.modal={type:'pdf',err:true};render();}});},
+  pdfShare(){if(!PDFFILE)return 'keep';try{if(navigator.canShare&&navigator.canShare({files:[PDFFILE.file]})){navigator.share({files:[PDFFILE.file],title:'Commande de tenues'}).catch(()=>{});return 'keep';}}catch(e){}const a=document.createElement('a');a.href=PDFFILE.url;a.download=PDFFILE.nom;document.body.appendChild(a);a.click();a.remove();return 'keep';},
   mFilter(d){S.mFilter=d.v;},
   onlineToggle(){S.openOnline=!S.openOnline;},
   matchDelAsk(d){S.modal={type:'matchDel',id:d.id};},
