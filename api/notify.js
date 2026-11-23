@@ -50,7 +50,7 @@ export default async function handler(req, res) {
       if (!t) return res.status(404).json({ ok: false })
       club = t.data.club; equipe = id
     }
-    if (scope === 'player') club = String(corps.club || '')
+    if (scope === 'player' || scope === 'user') club = String(corps.club || '')
     // L'expéditeur doit appartenir au club (même en attente : nouvelle inscription)
     const { data: mesAdh } = await admin.from('memberships').select('id').eq('user_id', moi).eq('club_id', club).limit(1)
     if (!mesAdh || !mesAdh.length) return res.status(403).json({ ok: false })
@@ -59,6 +59,7 @@ export default async function handler(req, res) {
     let q = admin.from('memberships').select('user_id, role, team_id').eq('club_id', club).eq('statut', 'actif')
     if (scope === 'staff') q = q.in('role', ['responsable', 'coach', 'adjoint'])
     if (scope === 'player') q = q.eq('player_id', id)
+    if (scope === 'user') q = q.eq('user_id', id)
     const { data: adh } = await q
     const dest = [...new Set((adh || [])
       .filter((m) => scope !== 'team' || m.team_id === equipe || m.role === 'responsable')
