@@ -964,8 +964,13 @@ function vClub(){
     const all=S.players.filter(p=>tids.includes(p.team));
     h+=`<span class="muted">Tous les licenciés du club sont repris automatiquement. Ajoute un article (jogging, sweat…), puis note la taille de chaque joueur.</span>
     <button class="btn red" data-a="tenuesPdf">📄 PDF de la commande (joueurs, numéros, tailles)</button>
-    <div class="chips wrap">${its.map(i=>`<button class="chip ${it&&i.id===it.id?'on':''}" aria-pressed="${it&&i.id===it.id}" data-a="item" data-id="${i.id}">${esc(i.name)}</button>`).join('')}<button class="chip" style="border-style:dashed" data-a="newItem">+ Ajouter un article</button></div>`;
-    if(it){const sizes=KINDS[it.kind];const count={};let none=0,given=0;all.forEach(p=>{const z=(p.sizes||{})[it.id];if(z)count[z]=(count[z]||0)+1;else none++;if((p.given||{})[it.id])given++;});
+    <div class="chips wrap">${its.map(i=>`<button class="chip ${it&&i.id===it.id?'on':''}" aria-pressed="${it&&i.id===it.id}" data-a="item" data-id="${i.id}">${esc(i.name)}</button>`).join('')}<button class="chip" style="border-style:dashed" data-a="newItem">+ Ajouter un article</button>${its.some(i=>i.solo&&/gardien/i.test(i.name))?'':'<button class="chip" style="border-style:dashed" data-a="gkItem">+ Maillot de gardien</button>'}</div>`;
+    if(it&&it.solo){const sizes=KINDS[it.kind]||KINDS['Vêtement adulte'];const q=it.qty||1;
+      h+=`<div class="panel"><span class="label">${esc(it.name)} · pour toute l’équipe</span><span class="muted">Un seul article partagé, pas un par joueur : une seule taille à choisir.</span>
+      <div class="grid2"><label class="field">Taille<select data-c="soloSize" data-id="${it.id}"><option value="">Taille ?</option>${sizes.map(x=>`<option ${x===it.size?'selected':''}>${esc(x)}</option>`).join('')}</select></label><label class="field">Quantité<select data-c="soloQty" data-id="${it.id}">${[1,2,3,4,5].map(n=>`<option ${n===q?'selected':''}>${n}</option>`).join('')}</select></label></div>
+      <span style="font-family:Inter,sans-serif;font-size:14px;font-weight:700">${it.got?'Déjà reçu : rien à commander':it.size?'À commander : '+esc(it.size)+' × '+q:'Choisis la taille'}</span>
+      <div class="row" style="justify-content:space-between"><button class="pill ${it.got?'ok':'wait'}" style="border:none;min-height:40px" data-a="soloGot" data-id="${it.id}" aria-pressed="${!!it.got}">${it.got?'Reçu ✓':'Pas encore reçu'}</button><button class="lnk" data-a="delItem" data-id="${it.id}">Supprimer l’article</button></div></div>`;}
+    else if(it){const sizes=KINDS[it.kind];const count={};let none=0,given=0;all.forEach(p=>{const z=(p.sizes||{})[it.id];if(z)count[z]=(count[z]||0)+1;else none++;if((p.given||{})[it.id])given++;});
       h+=`<div class="panel"><span class="label">${esc(it.name)} · ${esc(it.kind)}</span>
       <span style="font-family:Inter,sans-serif;font-size:14px;font-weight:700">À commander : ${sizes.filter(z=>count[z]).map(z=>esc(z)+' × '+count[z]).join(' · ')||'aucune taille saisie'}</span>
       <span class="muted">${all.length-none}/${all.length} tailles saisies${none?' · '+none+' à compléter':''} · ${given}/${all.length} remis</span>
@@ -1119,7 +1124,7 @@ function vPlayer(){const p=myPlayer();const t=team(p.team);const c=club(t.club);
   if(v==='chat')return dmTabs(p)+(S.chatTab==='dm'?vDm(p.id):vChat(t.id));
   if(v==='photos'){const saved=S.sub.club;S.sub.club='photos';const h=vClub().split('<div class="subtabs"')[1];S.sub.club=saved;return '<div class="subtabs" style="display:none"'+h;}
   // moi
-  const its=S.items.filter(i=>i.club===c.id);const price=(S.licPrice||{})[c.id]||90;const myCol=(S.collectes||[]).filter(k=>k.club===c.id&&k.teams.includes(t.id));
+  const its=S.items.filter(i=>i.club===c.id&&!i.solo);const price=(S.licPrice||{})[c.id]||90;const myCol=(S.collectes||[]).filter(k=>k.club===c.id&&k.teams.includes(t.id));
   const [pf,pn]=splitName(p.name);
   return `<div><span class="hl" style="font-size:26px">${esc(p.name)}</span><br><span class="muted">${esc(tname(t.id))} · ${p.num?'n° '+p.num:'sans numéro'} · ${esc(p.pos)}</span></div>
   <div class="grid2"><label class="field">Prénom<input value="${esc(pf)}" data-c="pname" data-k="first" data-id="${p.id}" autocomplete="given-name"></label><label class="field">Nom<input value="${esc(pn)}" data-c="pname" data-k="last" data-id="${p.id}" autocomplete="family-name"></label></div>
@@ -1800,7 +1805,7 @@ async function licPdf(){const c=myClub();const tids=teamsOfClub(c.id).filter(t=>
   autoTable(doc,{startY:y2+3,margin:{left:12,right:12},head:[['',pdfTxt('Ont payé'),pdfTxt('Encaissé'),pdfTxt('Reste à encaisser')]],body:rows,styles:{font:'helvetica',fontSize:10,cellPadding:2.2,lineColor:[200,200,200],lineWidth:0.1},headStyles:{fillColor:[17,17,17],textColor:255,fontStyle:'bold'},columnStyles:{1:{halign:'center'},2:{halign:'right',fontStyle:'bold'},3:{halign:'right'}},didParseCell:(d)=>{if(d.section==='body'&&d.row.index===rows.length-1)d.cell.styles.fontStyle='bold';}});
   const n=doc.getNumberOfPages();for(let k=1;k<=n;k++){doc.setPage(k);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(120,120,120);doc.text(pdfTxt('Le Mercato du dimanche - '+c.name+' - '+date+' - page '+k+'/'+n),12,doc.internal.pageSize.getHeight()-8);}
   const nom='licencies-'+norm(c.name).replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')+'.pdf';const blob=doc.output('blob');return {file:new File([blob],nom,{type:'application/pdf'}),url:URL.createObjectURL(blob),nom,titre:'Licenciés et paiements',resume:all.length+' licencié'+(all.length>1?'s':'')+' · '+tv+' € encaissés · '+tr+' € restant à encaisser'};}
-async function tenuesPdf(){const c=myClub();const tids=teamsOfClub(c.id).filter(t=>!team(t).ext);const its=S.items.filter(i=>i.club===c.id);const multi=tids.length>1;
+async function tenuesPdf(){const c=myClub();const tids=teamsOfClub(c.id).filter(t=>!team(t).ext);const its=S.items.filter(i=>i.club===c.id&&!i.solo);const solos=S.items.filter(i=>i.club===c.id&&i.solo);const multi=tids.length>1;
   const all=S.players.filter(p=>tids.includes(p.team)).sort((a,b)=>(multi?tids.indexOf(a.team)-tids.indexOf(b.team):0)||((a.num||999)-(b.num||999))||a.name.localeCompare(b.name));
   const [{jsPDF},at]=await Promise.all([import('jspdf'),import('jspdf-autotable')]);const autoTable=at.default||at.autoTable;
   const doc=new jsPDF({orientation:its.length>4?'landscape':'portrait',unit:'mm',format:'a4'});const W=doc.internal.pageSize.getWidth();const date=new Date().toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'});
@@ -1814,7 +1819,7 @@ async function tenuesPdf(){const c=myClub();const tids=teamsOfClub(c.id).filter(
     columnStyles:{[multi?1:0]:{halign:'center',fontStyle:'bold',cellWidth:14}},didParseCell:(d)=>{if(d.section==='body'&&d.cell.raw==='-'&&d.column.index>(multi?2:1)){d.cell.styles.textColor=[196,5,0];}if(d.section==='body'&&d.column.index>(multi?2:1)&&/distribu/.test(String(d.cell.raw))){d.cell.styles.textColor=[130,130,130];d.cell.styles.fontStyle='italic';}}});
   let y2=(doc.lastAutoTable?doc.lastAutoTable.finalY:y+20)+10;if(y2>doc.internal.pageSize.getHeight()-50){doc.addPage();y2=18;}
   doc.setFont('helvetica','bold');doc.setFontSize(12);doc.text(pdfTxt('Quantités à commander'),12,y2);
-  const rows=[];its.forEach(i=>{const count={};let none=0,deja=0,tot=0;all.forEach(p=>{if((p.given||{})[i.id]){deja++;return;}const z=(p.sizes||{})[i.id];if(z){count[z]=(count[z]||0)+1;tot++;}else none++;});const det=(KINDS[i.kind]||Object.keys(count)).filter(z=>count[z]).map(z=>z+' x '+count[z]).join('   ');rows.push([pdfTxt(i.name),pdfTxt(det||(deja&&!none?'rien à commander':'aucune taille saisie')),String(tot),String(deja),String(none)]);});
+  const rows=[];its.forEach(i=>{const count={};let none=0,deja=0,tot=0;all.forEach(p=>{if((p.given||{})[i.id]){deja++;return;}const z=(p.sizes||{})[i.id];if(z){count[z]=(count[z]||0)+1;tot++;}else none++;});const det=(KINDS[i.kind]||Object.keys(count)).filter(z=>count[z]).map(z=>z+' x '+count[z]).join('   ');rows.push([pdfTxt(i.name),pdfTxt(det||(deja&&!none?'rien à commander':'aucune taille saisie')),String(tot),String(deja),String(none)]);});solos.forEach(i=>{const q=i.qty||1;rows.push([pdfTxt(i.name+' (pour toute l\'équipe)'),pdfTxt(i.got?'rien à commander':i.size?i.size+' x '+q:'taille à choisir'),String(i.got?0:q),String(i.got?q:0),String(!i.got&&!i.size?1:0)]);});
   autoTable(doc,{startY:y2+3,margin:{left:12,right:12},head:[['Article',pdfTxt('Détail par taille'),pdfTxt('A commander'),pdfTxt('Déjà distribué'),pdfTxt('Taille manquante')]],body:rows,styles:{font:'helvetica',fontSize:10,cellPadding:2.2,lineColor:[200,200,200],lineWidth:0.1},headStyles:{fillColor:[17,17,17],textColor:255,fontStyle:'bold'},columnStyles:{2:{halign:'center',fontStyle:'bold',cellWidth:24},3:{halign:'center',cellWidth:26},4:{halign:'center',cellWidth:26}}});
   const n=doc.getNumberOfPages();for(let k=1;k<=n;k++){doc.setPage(k);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(120,120,120);doc.text(pdfTxt('Le Mercato du dimanche - '+c.name+' - '+date+' - page '+k+'/'+n),12,doc.internal.pageSize.getHeight()-8);}
   const nom='tenues-'+norm(c.name).replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')+'.pdf';const blob=doc.output('blob');return {file:new File([blob],nom,{type:'application/pdf'}),url:URL.createObjectURL(blob),nom,joueurs:all.length,articles:its.length,manque:rows.reduce((a,r)=>a+Number(r[4]),0)};}
@@ -2050,6 +2055,7 @@ function vModal(){
     <form data-f="item" style="display:flex;flex-direction:column;gap:10px"><label class="field">Article<input name="name" list="ideas" required placeholder="Jogging, sweat, parka…"><datalist id="ideas">${ITEM_IDEAS.map(x=>`<option value="${esc(x)}">`).join('')}</datalist></label>
     <div class="chips wrap">${ITEM_IDEAS.slice(0,6).map(x=>`<button type="button" class="chip" data-a="pickIdea" data-v="${esc(x)}">${esc(x)}</button>`).join('')}</div>
     <label class="field">Type de tailles<select name="kind">${Object.keys(KINDS).map(k=>`<option>${k}</option>`).join('')}</select></label>
+    <label class="row" style="gap:10px;font-family:Inter,sans-serif;font-size:14px"><input type="checkbox" name="solo" style="width:22px;height:22px"> Un seul pour toute l’équipe (pas un par joueur)</label>
     <button class="btn red" type="submit">Ajouter</button><button class="btn ghost" type="button" data-a="close">Annuler</button></form>`;}
   else if(m.type==='live'){const x=S.matches.find(y=>y.id===m.id);h=vLiveCoach(x);}
   else if(m.type==='watch'){const x=S.matches.find(y=>y.id===m.id);h=vLiveWatch(x);}
@@ -2296,6 +2302,8 @@ const A={
   delSpons(d){S.sponsors=S.sponsors.filter(x=>x.id!==d.id);},
   newItem(){S.modal={type:'item'};},
   pickIdea(d){const i=document.querySelector('form[data-f=item] [name=name]');if(i)i.value=d.v;return 'keep';},
+  gkItem(){const c=myClub();const it={id:id('i'),club:c.id,name:'Maillot de gardien',kind:'Vêtement adulte',solo:true,qty:1};S.items.push(it);S.openItem=it.id;toast('Maillot de gardien ajouté : choisis la taille');},
+  soloGot(d){const it=S.items.find(i=>i.id===d.id);if(it)it.got=!it.got;},
   delItem(d){S.items=S.items.filter(i=>i.id!==d.id);S.openItem=null;toast('Article supprimé');},
   given(d){const p=S.players.find(x=>x.id===d.id);p.given=p.given||{};p.given[d.item]=!p.given[d.item];},
   copyItem(d){const it=S.items.find(i=>i.id===d.id);const tids=teamsOfClub(myClub().id);const all=S.players.filter(p=>tids.includes(p.team));const count={};all.forEach(p=>{const z=(p.sizes||{})[it.id];if(z&&!(p.given||{})[it.id])count[z]=(count[z]||0)+1;});
@@ -2412,7 +2420,7 @@ const A={
   rep(d){const p=S.players.find(x=>x.id===d.id);p.rep={wait:'ok',ok:'no',no:'inj',inj:'wait'}[p.rep||'wait'];},
   lic(d){S.openLic=S.openLic===d.id?null:d.id;},
   bravo(d){const p=S.posts.find(x=>x.id===d.id);p.mine=!p.mine;p.bravos+=p.mine?1:-1;},
-  copyLic(){const tids=teamsOfClub(myClub().id);const its=S.items.filter(i=>i.club===myClub().id);const rows=[['Nom','N°','Catégorie','Licence','Mode'].concat(its.map(i=>i.name))].concat(S.players.filter(p=>tids.includes(p.team)).map(p=>[p.name,p.num||'',team(p.team).cat,p.lic?'Payée':'À régler',p.lic?p.mode:''].concat(its.map(i=>(p.sizes||{})[i.id]||''))));
+  copyLic(){const tids=teamsOfClub(myClub().id);const its=S.items.filter(i=>i.club===myClub().id&&!i.solo);const rows=[['Nom','N°','Catégorie','Licence','Mode'].concat(its.map(i=>i.name))].concat(S.players.filter(p=>tids.includes(p.team)).map(p=>[p.name,p.num||'',team(p.team).cat,p.lic?'Payée':'À régler',p.lic?p.mode:''].concat(its.map(i=>(p.sizes||{})[i.id]||''))));
     const txt=rows.map(r=>r.join('\t')).join('\n');try{navigator.clipboard.writeText(txt).then(()=>{toast('Liste copiée : colle-la dans Excel');render();},()=>{toast('Copie refusée par le navigateur');render();});}catch(e){toast('Copie impossible ici');}}
 };
 const F={
@@ -2511,7 +2519,7 @@ const F={
   train(fd){S.trainings=S.trainings||[];const bf=fd.get('bfield');const once=fd.get('rep')==='once';if(once&&!fd.get('date')){toast('Choisis la date de l’entraînement');return;}S.trainings.push({id:id('tr'),team:fd.get('team'),dow:once?parse(fd.get('date')).getDay():Number(fd.get('dow')),date:once?fd.get('date'):undefined,time:fd.get('time'),field:fd.get('field'),planB:bf?{field:bf,time:fd.get('btime')||fd.get('time')}:null,lim:fd.get('lim')===''||fd.get('lim')==null?undefined:Number(fd.get('lim'))});toast('Entraînement ajouté');},
   field(fd){const c=myClub();c.fields=c.fields||[];c.fields.push({id:id('f'),name:fd.get('name').trim(),address:fd.get('address').trim(),surface:fd.get('surface')});toast('Terrain ajouté');},
   event(fd){S.events=S.events||[];const e={id:id('e'),club:myClub().id,title:fd.get('title').trim(),date:fd.get('date'),time:fd.get('time'),place:fd.get('place').trim(),price:(fd.get('price')||'').trim(),desc:(fd.get('desc')||'').trim(),by:whoKey(),going:[whoKey()],no:[],aud:fd.getAll('aud'),priv:!!fd.get('priv')};S.events.push(e);S.modal=null;chatSys(S.me,'Nouvel événement de '+whoName(e.by)+' : '+e.title+', '+fdLong(e.date)+'.');toast('Événement créé, l’équipe est prévenue');},
-  item(fd){const it={id:id('i'),club:myClub().id,name:fd.get('name').trim(),kind:fd.get('kind')};if(!it.name)return;S.items.push(it);S.openItem=it.id;S.modal=null;toast(it.name+' ajouté : saisis les tailles');},
+  item(fd){const it={id:id('i'),club:myClub().id,name:fd.get('name').trim(),kind:fd.get('kind')};if(fd.get('solo')){it.solo=true;it.qty=1;}if(!it.name)return;S.items.push(it);S.openItem=it.id;S.modal=null;toast(it.name+' ajouté : saisis les tailles');},
   addPlayer(fd){const pl=S.players.filter(p=>p.team===S.me);S.players.push({id:id('p'),team:S.me,birth:fd.get('birth')||undefined,name:fullName(fd.get('name'),fd.get('last')),pre:true,num:LIVE?null:(Number(fd.get('num'))||pl.length+1),pos:fd.get('pos')||'À définir',lic:false,mode:'Virement',pot:false,sizes:{},given:{},rep:'wait'});toast(fullName(fd.get('name'),fd.get('last'))+' ajouté à l’effectif');},
   post(fd,form){const f=fd.get('img');const done=(img)=>{S.posts.push({id:id('po'),club:myClub().id,author:S.role==='player'?myPlayer().name:'Coach '+tshort(S.me),title:fd.get('title').trim(),text:(fd.get('text')||'').trim(),img,at:Date.now(),bravos:0,mine:false});save();render();toast('Publié dans le club');};
     if(f&&f.size){const rd=new FileReader();rd.onload=()=>{const im=new Image();im.onload=()=>{const k=Math.min(1,700/Math.max(im.width,im.height));const cv=document.createElement('canvas');cv.width=Math.round(im.width*k);cv.height=Math.round(im.height*k);cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height);done(cv.toDataURL('image/jpeg',0.72));};im.onerror=()=>done(null);im.src=rd.result;};rd.readAsDataURL(f);return 'async';}done(null);return 'async';}
@@ -2552,6 +2560,8 @@ const C={
   clubPick(el){fillTeams(el.closest('form'),el.value);return 'keep';},
   playsPick(el){const f=el.closest('form');const pp=f&&f.querySelector('[data-ppos]');if(pp)pp.style.display=el.checked?'flex':'none';return 'keep';},
   fnWho(el){S.fnOpen=true;const c=myClub();const mems=(CLOUD.clubMem||[]).filter(m=>m.club_id===c.id&&m.statut==='actif');S.fnDraft=el.value&&can('admin',c.id)?fnDraftFor(c,el.value,mems):null;},
+  soloSize(el){const it=S.items.find(i=>i.id===el.dataset.id);if(it)it.size=el.value||null;},
+  soloQty(el){const it=S.items.find(i=>i.id===el.dataset.id);if(it)it.qty=Number(el.value)||1;},
   teamCat(el){const t=me();const old=t.cat;if(!CATS.includes(el.value)||old===el.value)return;t.cat=el.value;t.acceptCats=[...new Set((t.acceptCats||[]).map(x=>x===old?t.cat:x).concat(t.cat))];const L=lvlsFor(t.cat,t.affil);if(!L.includes(t.lvl))t.lvl=L[0];toast('Catégorie changée : '+t.cat);},
   teamAffil(el){const t=me();t.affil=el.value;const L=lvlsFor(t.cat,t.affil);if(!L.includes(t.lvl))t.lvl=L[0];},
   teamLvl(el){const t=me();t.lvl=el.value;if(!t.acceptLvls.includes(t.lvl))t.acceptLvls.push(t.lvl);},
