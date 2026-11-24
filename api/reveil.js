@@ -1,4 +1,4 @@
-// Passage quotidien (cron Vercel, chaque matin) :
+// Passage quotidien (cron Vercel, chaque jour vers 18 h en hiver, 19 h en été) :
 // 1. une petite lecture dans la base pour que Supabase ne mette jamais le projet en pause
 //    (formule gratuite : pause après 7 jours sans activité) ;
 // 2. les rappels automatiques : 4 jours et 2 jours avant la clôture des réponses,
