@@ -1,9 +1,14 @@
 // Plan B automatique : appelé environ une fois par heure (crons Vercel, de 6 h à 21 h).
 // Pour chaque entraînement du jour qui a un plan B et l'option « automatique » :
-//  - environ 3 h avant la séance, si le cumul de pluie de la journée (tombée + prévue
-//    jusqu'à la séance) atteint le seuil, la séance passe en plan B et l'équipe est prévenue ;
-//  - plus tôt dans la journée, seulement si la pluie DÉJÀ tombée atteint le seuil (c'est sûr) ;
+//  - environ 2 h avant la séance, si le cumul de pluie de la journée (tombée + prévue jusqu'à
+//    la séance) atteint le seuil ET qu'il pleut encore à l'heure de la séance, la séance passe
+//    en plan B et l'équipe est prévenue ;
+//  - si le ciel se dégage pour la séance, rien ne change (sauf très grosse pluie déjà tombée :
+//    le terrain est alors détrempé de toute façon) ;
+//  - plus tôt dans la journée, la bascule est immédiate si le temps est franchement mauvais et
+//    ne s'améliore pas (gros cumul et vraie pluie pendant la séance) ;
 //  - sinon rien n'est envoyé.
+// L'option est active par défaut dès qu'un plan B est réglé (le coach peut la couper).
 // Si le coach revient au plan normal, l'appli ne rebascule pas une deuxième fois.
 // Essai sans rien changer ni envoyer : /api/planb?essai=1
 import * as webpushNs from 'web-push'
@@ -13,8 +18,12 @@ import { createClient } from '@supabase/supabase-js'
 const SB_URL = 'https://qxgyzxewzoqsrpgancul.supabase.co'
 const VAPID_PUBLIC = 'BGb0TjUXfvETYZ79OUcVwiZ-UVxT0tQhKb7vfhsffaCtT95ctal7VIkM6WBHx1rDqmx74Bgqkre332EtlFYlLdo'
 const SEUIL_MM = 5          // « moyen » : une bonne pluie dans la journée
-const FENETRE_MIN = 210     // décision à partir de 3 h 30 avant la séance
-const TOT_MIN = 600         // avant ça (jusqu'à 10 h avant), seulement si la pluie est déjà tombée
+const SEANCE_MM = 0.3      // pluie pendant la séance : en dessous, on considère que ça se dégage
+const DETREMPE_MM = 12     // au-delà, terrain détrempé même si la pluie s'arrête
+const FRANC_JOUR_MM = 8     // temps franchement mauvais : cumul de la journée…
+const FRANC_SEANCE_MM = 1   // … et vraie pluie pendant la séance : on bascule sans attendre
+const TOT_MIN = 600         // au plus tôt 10 h avant la séance
+const FENETRE_MIN = 130    // décision à partir de 2 h 10 avant la séance (le serveur passe une fois par heure)
 
 function maintenantParis() {
   const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date()).map((x) => [x.type, x.value]))
@@ -34,7 +43,7 @@ export default async function handler(req, res) {
     const bilan = { ok: true, jour: now.jour, heure: now.heure, essai, seances: [] }
 
     const { data: trDocs } = await admin.from('docs').select('id,data').eq('col', 'trainings')
-    const duJour = (trDocs || []).map((d) => d.data || {}).filter((tr) => tr.planB && tr.autoB && tr.time && (tr.date ? tr.date === now.jour : Number(tr.dow) === now.dow))
+    const duJour = (trDocs || []).map((d) => d.data || {}).filter((tr) => tr.planB && tr.autoB !== false && tr.time && (tr.date ? tr.date === now.jour : Number(tr.dow) === now.dow))
     if (!duJour.length) return res.status(200).json(bilan)
 
     const { data: eqDocs } = await admin.from('docs').select('id,data').eq('col', 'teams')
@@ -49,7 +58,9 @@ export default async function handler(req, res) {
       const [hh, mm] = String(tr.time).split(':').map(Number)
       const avant = hh * 60 + (mm || 0) - now.minutes
       ligne.minutesAvant = avant
-      if (avant <= 0 || avant > TOT_MIN) { ligne.decision = 'hors créneau'; continue }
+      if (avant <= 0) { ligne.decision = 'séance commencée'; continue }
+      if (avant > TOT_MIN) { ligne.decision = 'trop tôt pour décider'; continue }
+      const tot = avant > FENETRE_MIN
 
       const { data: etat } = await admin.from('docs').select('data').eq('col', 'trainState').eq('id', cle).maybeSingle()
       const st = (etat && etat.data && etat.data.v) || 'A'
@@ -69,16 +80,20 @@ export default async function handler(req, res) {
       }
       const h = meteoCache.get(k) && meteoCache.get(k).hourly
       if (!h || !h.time || !h.precipitation) { ligne.decision = 'météo indisponible'; continue }
-      let tombee = 0, prevue = 0
+      let tombee = 0, prevue = 0, seance = 0
       h.time.forEach((t, i) => {
         if (String(t).slice(0, 10) !== now.jour) return
         const heure = Number(String(t).slice(11, 13)); const v = Number(h.precipitation[i]) || 0
         if (heure < now.heure) tombee += v
         if (heure <= hh + 1) prevue += v
+        if (heure === hh || heure === hh + 1) seance += v
       })
-      ligne.tombee = Math.round(tombee * 10) / 10; ligne.prevue = Math.round(prevue * 10) / 10
-      const bascule = avant <= FENETRE_MIN ? prevue >= SEUIL_MM : tombee >= SEUIL_MM
-      if (!bascule) { ligne.decision = avant <= FENETRE_MIN ? 'plan normal maintenu' : 'trop tôt pour décider'; continue }
+      ligne.tombee = Math.round(tombee * 10) / 10; ligne.prevue = Math.round(prevue * 10) / 10; ligne.pendantSeance = Math.round(seance * 10) / 10
+      // Avant la fenêtre des 2 h : seulement si c'est franchement mauvais et que ça ne s'améliore pas
+      const bascule = tot
+        ? (prevue >= FRANC_JOUR_MM && seance >= FRANC_SEANCE_MM) || tombee >= DETREMPE_MM
+        : (prevue >= SEUIL_MM && seance >= SEANCE_MM) || tombee >= DETREMPE_MM
+      if (!bascule) { ligne.decision = tot ? 'trop tôt pour décider' : prevue >= SEUIL_MM ? 'plan normal maintenu : ça se dégage pour la séance' : 'plan normal maintenu'; continue }
       ligne.decision = 'plan B'
       if (essai) continue
 
