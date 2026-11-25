@@ -14,6 +14,70 @@
     {
       "path": "/api/reveil",
       "schedule": "0 17 * * *"
+    },
+    {
+      "path": "/api/planb?h=5",
+      "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/planb?h=6",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/planb?h=7",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/planb?h=8",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/planb?h=9",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/planb?h=10",
+      "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/planb?h=11",
+      "schedule": "0 11 * * *"
+    },
+    {
+      "path": "/api/planb?h=12",
+      "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/planb?h=13",
+      "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/planb?h=14",
+      "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/planb?h=15",
+      "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/planb?h=16",
+      "schedule": "0 16 * * *"
+    },
+    {
+      "path": "/api/planb?h=17",
+      "schedule": "0 17 * * *"
+    },
+    {
+      "path": "/api/planb?h=18",
+      "schedule": "0 18 * * *"
+    },
+    {
+      "path": "/api/planb?h=19",
+      "schedule": "0 19 * * *"
+    },
+    {
+      "path": "/api/planb?h=20",
+      "schedule": "0 20 * * *"
     }
   ]
 }
