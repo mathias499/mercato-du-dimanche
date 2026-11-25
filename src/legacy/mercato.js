@@ -1185,10 +1185,16 @@ function vPlayer(){const p=myPlayer();const t=team(p.team);const c=club(t.club);
 // ---------- stats joueur : anneaux, buteurs, passeurs, homme du match ----------
 const seasonStart=()=>{const y=T0.getMonth()>=7?T0.getFullYear():T0.getFullYear()-1;return new Date(y,8,1);};
 const seasonEnd=()=>new Date(seasonStart().getFullYear()+1,5,30);
-function countDows(tid,from,to){const dows=trainingsOf(tid).map(t=>t.dow);let n=0;for(let d=new Date(from);d<=to;d=addDays(d,1))if(dows.includes(d.getDay()))n++;return n;}
-const trainHeld=(tid)=>countDows(tid,seasonStart(),addDays(T0,-1));
-const trainSeason=(tid)=>countDows(tid,seasonStart(),seasonEnd());
-const trainDone=(p)=>Math.min(trainHeld(p.team),(p.trainBase||0)+Object.keys(p.trainDates||{}).length);
+function countDows(tid,from,to){const dows=trainingsOf(tid).filter(t=>!t.date).map(t=>t.dow);let n=0;for(let d=new Date(from);d<=to;d=addDays(d,1))if(dows.includes(d.getDay()))n++;return n;}
+// Séances réellement tenues depuis que l'équipe utilise l'appli : date passée (ou aujourd'hui, 1 h 30 après le début), non annulées.
+function trainDebut(tid){const ids=new Set(trainingsOf(tid).map(t=>t.id));let min=null;[S.trainRsvp,S.trainState].forEach(o=>Object.keys(o||{}).forEach(k=>{const [id,d]=k.split('@');if(ids.has(id)&&d&&(!min||d<min))min=d;}));(S.seances||[]).forEach(x=>{if(x.forKey){const [id,d]=x.forKey.split('@');if(ids.has(id)&&d&&(!min||d<min))min=d;}});const ss=iso(seasonStart());return !min?TODAY:min<ss?ss:min;}
+function trainTenues(tid){const out=[];const now=new Date();const fini=(d,time)=>{if(d<TODAY)return true;if(d>TODAY)return false;const [h,m]=String(time||'20:00').split(':').map(Number);return now.getHours()*60+now.getMinutes()>=h*60+(m||0)+90;};const deb=trainDebut(tid);
+  trainingsOf(tid).forEach(tr=>{if(tr.date){if(tr.date>=deb&&tr.date<=TODAY)out.push({tr,date:tr.date});return;}for(let d=parse(deb);iso(d)<=TODAY;d=addDays(d,1))if(d.getDay()===tr.dow)out.push({tr,date:iso(d)});});
+  return out.map(x=>{const key=x.tr.id+'@'+x.date;const st=(S.trainState||{})[key]||'A';return {key,date:x.date,st,time:st==='B'&&x.tr.planB?x.tr.planB.time:x.tr.time};}).filter(x=>x.st!=='X'&&fini(x.date,x.time)).sort((a,b)=>a.date.localeCompare(b.date));}
+const trainVenu=(p,x)=>{const v=(p.trainDates||{})[x.date];if(v===true)return true;if(v===false)return false;return (((S.trainRsvp||{})[x.key])||{})[p.id]==='ok';};
+const trainHeld=(tid)=>LIVE?trainTenues(tid).length:countDows(tid,seasonStart(),addDays(T0,-1));
+const trainSeason=(tid)=>LIVE?trainTenues(tid).length+countDows(tid,addDays(T0,1),seasonEnd())+trainingsOf(tid).filter(t=>t.date&&t.date>TODAY).length:countDows(tid,seasonStart(),seasonEnd());
+const trainDone=(p)=>LIVE?trainTenues(p.team).filter(x=>trainVenu(p,x)).length:Math.min(trainHeld(p.team),(p.trainBase||0)+Object.keys(p.trainDates||{}).length);
 const teamPlayed=(tid)=>S.matches.filter(m=>(m.from===tid||m.to===tid)&&m.status==='played'&&m.date>=iso(seasonStart())).length;
 const assists=(pid)=>S.matches.reduce((n,m)=>n+((m.events||[]).filter(e=>e.assist===pid&&(!e.type||e.type==='goal')&&!e.cancelled).length),0);
 const motmEnd=(m)=>{if(m.motm&&m.motm.openedAt){const d=new Date(m.motm.openedAt+48*3600000);return d;}const d=addDays(parse(m.date),2);d.setHours(18,0,0,0);return d;};
@@ -1417,10 +1423,10 @@ function motmCard(tid){const m=lastPlayed(tid);if(!m)return '';m.motm=m.motm||{v
     else h+='<span class="muted">Seuls les joueurs présents au match votent.</span>';}
   if(isCoach()){const cn=m.motm.coachNotes||{};const nN=Object.keys(cn).length;h+=`<div class="links"><button class="lnk" data-a="coachNotes" data-id="${m.id}">${nN?'Modifier mes notes ('+nN+' joueur'+(nN>1?'s':'')+')':'Noter les joueurs (facultatif)'}</button>${closed?'':`<button class="lnk red" data-a="closeMotm" data-id="${m.id}">Clôturer le vote maintenant</button>`}</div>`;}
   return h+'</div>';}
-function nextTrainCard(p){const ups=upcomingTrainings(p.team,trainWindow(p.team)).filter(u=>!u.tr.label);const up=ups[0];const last=(()=>{for(let i=1;i<=7;i++){const d=addDays(T0,-i);if(trainingsOf(p.team).some(t=>t.date?t.date===iso(d):t.dow===d.getDay()))return iso(d);}return null;})();let h='';
+function nextTrainCard(p){const ups=upcomingTrainings(p.team,trainWindow(p.team)).filter(u=>!u.tr.label);const up=ups[0];const last=LIVE?(()=>{const l=trainTenues(p.team).filter(x=>x.date>=iso(addDays(T0,-7)));const x=l[l.length-1];return x&&!trainVenu(p,x)&&(p.trainDates||{})[x.date]!==false?x.date:null;})():(()=>{for(let i=1;i<=7;i++){const d=addDays(T0,-i);if(trainingsOf(p.team).some(t=>t.date?t.date===iso(d):t.dow===d.getDay()))return iso(d);}return null;})();let h='';
   ups.forEach(u=>{const r=((S.trainRsvp||{})[u.key]||{})[p.id];h+=`${trainingCard(u,false)}<div class="row"><button class="btn small ${r==='ok'?'red':'ghost'}" data-a="trainRsvp" data-k="${u.key}" data-v="ok" aria-pressed="${r==='ok'}">Je viens</button><button class="btn small ${r==='no'?'':'ghost'}" data-a="trainRsvp" data-k="${u.key}" data-v="no" aria-pressed="${r==='no'}">Je ne viens pas</button></div>`;});
   if(!ups.length)h+=`<div class="empty">Pas d’entraînement prévu ${trainWindow(p.team)===7?'cette semaine':'ces deux prochaines semaines'}.</div>`;
-  if(last&&!(p.trainDates||{})[last])h+=`<div class="panel"><span style="font-size:14px">Tu étais à l’entraînement du ${esc(fdLong(last))} ?</span><button class="btn small" data-a="trainDone" data-d="${last}">Oui, j’y étais (+1 séance)</button></div>`;
+  if(last&&!(p.trainDates||{})[last])h+=`<div class="panel"><span style="font-size:14px">Tu étais à l’entraînement du ${esc(fdLong(last))} ?</span><div class="row"><button class="btn small" data-a="trainDone" data-d="${last}">Oui, j’y étais (+1 séance)</button>${LIVE?`<button class="btn small ghost" data-a="trainDone" data-d="${last}" data-v="non">Non</button>`:''}</div></div>`;
   return h;}
 
 // ---------- live du match ----------
@@ -2310,7 +2316,7 @@ const A={
   coachNotes(d){S.modal={type:'notes',id:d.id};},
   closeMotm(d){const m=S.matches.find(x=>x.id===d.id);m.motm.closed=true;closeMotms();toast('Vote clôturé, résultat annoncé dans le chat');},
   trainRsvp(d){S.trainRsvp=S.trainRsvp||{};const r=S.trainRsvp[d.k]=S.trainRsvp[d.k]||{};r[S.mePlayer]=d.v;toast(d.v==='ok'?'Le coach sait que tu viens':'Absence signalée au coach');},
-  trainDone(d){const p=myPlayer();p.trainDates=p.trainDates||{};p.trainDates[d.d]=true;toast('+1 entraînement, continue comme ça !');},
+  trainDone(d){const p=myPlayer();p.trainDates=p.trainDates||{};if(d.v==='non'){p.trainDates[d.d]=false;toast('Noté : séance non comptée');return;}p.trainDates[d.d]=true;toast('+1 entraînement, continue comme ça !');},
   pgo(d){S.pview=d.v;try{window.scrollTo(0,0);}catch(e){}},
   myRep(d){const p=myPlayer();const cp=S.compo[p.team];if(cp&&cp.sent&&p.rep==='ok'){toast('Tu es engagé : préviens le coach en cas d’imprévu');return;}p.rep=d.v;chatSys(p.team,p.name+(d.v==='ok'?' sera présent':d.v==='inj'?' est blessé et ne pourra pas jouer':' sera absent')+' au prochain match.');toast(d.v==='ok'?'Présence confirmée':d.v==='inj'?'Blessure signalée au coach. Bon rétablissement !':'Absence signalée au coach');},
   planBAsk(d){if(!isCoach())return;S.modal={type:'planB',k:d.k,v:d.v};},
