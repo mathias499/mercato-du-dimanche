@@ -55,6 +55,7 @@ export default async function handler(req, res) {
       const ligne = { cle, decision: 'rien' }
       bilan.seances.push(ligne)
       const eq = equipes.get(tr.team); if (!eq || eq.ext) { ligne.decision = 'équipe inconnue'; continue }
+      if ((tr.noAuto || []).includes(cle)) { ligne.decision = 'le coach a choisi le terrain normal'; continue }
       const [hh, mm] = String(tr.time).split(':').map(Number)
       const avant = hh * 60 + (mm || 0) - now.minutes
       ligne.minutesAvant = avant
